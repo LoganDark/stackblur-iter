@@ -63,11 +63,11 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 				self.trailing += 1;
 			}
 
-			for i in 0..=sub + self.radius {
+			for (i, place) in (0..=sub + self.radius).zip(self.ops.iter_mut()) {
 				if i < sub {
-					self.ops[i] += item.clone();
+					*place += item.clone();
 				} else {
-					self.ops[i] -= item.clone();
+					*place -= item.clone();
 				}
 			}
 		}
@@ -101,11 +101,11 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 
 			self.sum += item.clone();
 
-			for i in 0..=self.radius * 2 {
+			for (i, place) in (0..=self.radius * 2).zip(self.ops.iter_mut()) {
 				if i < self.radius {
-					self.ops[i] += item.clone();
+					*place += item.clone();
 				} else {
-					self.ops[i] -= item.clone();
+					*place -= item.clone();
 				}
 			}
 		} else if self.trailing > 0 {
