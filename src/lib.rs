@@ -17,6 +17,7 @@ pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
 	iter: Peekable<I>,
 	radius: usize,
 	sum: T,
+	rate: T,
 	dnom: usize,
 	ops: VecDeque<T>,
 	leading: usize,
@@ -26,7 +27,7 @@ pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
 
 impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	pub fn new(iter: I, radius: usize, ops: VecDeque<T>) -> Self {
-		Self { iter: iter.peekable(), radius, sum: T::default(), dnom: 0, ops, leading: 0, trailing: 0, done: true }
+		Self { iter: iter.peekable(), radius, sum: T::default(), rate: T::default(), dnom: 0, ops, leading: 0, trailing: 0, done: true }
 	}
 
 	pub fn into_ops(self) -> VecDeque<T> {
@@ -37,9 +38,10 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 		self.done = false;
 
 		self.ops.clear();
-		self.ops.resize_with(self.radius * 2 + 1, T::default);
+		self.ops.resize_with(self.radius * 2 + 2, T::default);
 
 		self.sum = T::default();
+		self.rate = T::default();
 		self.dnom = 0;
 		self.leading = 0;
 		self.trailing = 0;
@@ -57,19 +59,15 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 
 			let mul = self.radius + 1 - sub;
 			self.sum += item.clone() * mul;
+			self.rate += item.clone();
 			self.dnom += mul;
 
 			if self.dnom > mul {
 				self.trailing += 1;
 			}
 
-			for (i, place) in (0..=sub + self.radius).zip(self.ops.iter_mut()) {
-				if i < sub {
-					*place += item.clone();
-				} else {
-					*place -= item.clone();
-				}
-			}
+			self.ops[sub] -= item.clone() * 2;
+			self.ops[sub + self.radius + 1] += item.clone();
 		}
 	}
 }
@@ -88,7 +86,8 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 
 		let result = self.sum.clone() / self.dnom;
 
-		self.sum += self.ops.pop_front().unwrap();
+		self.rate += self.ops.pop_front().unwrap();
+		self.sum += self.rate.clone();
 		self.ops.push_back(T::default());
 
 		if self.leading < self.radius {
@@ -100,14 +99,10 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 			let item = self.iter.next().unwrap();
 
 			self.sum += item.clone();
+			self.rate += item.clone();
 
-			for (i, place) in (0..=self.radius * 2).zip(self.ops.iter_mut()) {
-				if i < self.radius {
-					*place += item.clone();
-				} else {
-					*place -= item.clone();
-				}
-			}
+			self.ops[self.radius] -= item.clone() * 2;
+			self.ops[self.radius * 2 + 1] += item.clone();
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
