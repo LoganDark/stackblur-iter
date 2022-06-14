@@ -117,13 +117,11 @@ struct ARGB(i32x4);
 
 impl ARGB {
 	fn from_argb(argb: u32) -> Self {
-		let [a, r, g, b] = argb.to_be_bytes();
-		Self(i32x4::from_array([a as i32, r as i32, g as i32, b as i32]))
+		Self(i32x4::from_array(argb.to_be_bytes().map(|i| i as i32)))
 	}
 
 	fn to_argb(self) -> u32 {
-		let [a, r, g, b] = self.0.to_array();
-		u32::from_be_bytes([a as u8, r as u8, g as u8, b as u8])
+		u32::from_be_bytes(self.0.to_array().map(|i| i as u8))
 	}
 }
 
@@ -205,10 +203,10 @@ pub fn blur_vert(argb: &mut [u32], width: usize, height: usize, radius: usize) {
 
 		let mut iter = StackBlur::new(read, radius, ops);
 
-		let mut row = 0usize;
+		let mut index = col;
 		while let Some(argb) = iter.next() {
-			unsafe { (*not_safe)[row * width + col] = argb.to_argb() };
-			row += 1;
+			unsafe { (*not_safe)[index] = argb.to_argb() };
+			index += width;
 		}
 
 		ops = iter.into_ops();
