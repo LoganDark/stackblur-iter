@@ -97,12 +97,10 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 
 		if self.trailing == self.radius && self.iter.peek().is_some() {
 			let item = self.iter.next().unwrap();
-
 			self.sum += item.clone();
 			self.rate += item.clone();
-
 			self.ops[self.radius] -= item.clone() * 2;
-			self.ops[self.radius * 2 + 1] += item.clone();
+			self.ops[self.radius * 2 + 1] += item;
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
