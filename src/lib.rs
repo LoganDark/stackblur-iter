@@ -1,133 +1,224 @@
+#![feature(portable_simd)]
+#![feature(test)]
+
 use std::collections::VecDeque;
 use std::iter::Peekable;
+use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
+use std::simd::i32x4;
 
-pub struct StackBlur<I: Iterator<Item = usize>> {
+#[cfg(test)]
+mod test;
+
+pub trait StackBlurrable: Default + Clone + Add<Output = Self> + AddAssign + SubAssign + Mul<usize, Output = Self> + Div<usize, Output = Self> {}
+
+impl<T: Default + Clone + Add<Output = T> + AddAssign + SubAssign + Mul<usize, Output = T> + Div<usize, Output = T>> StackBlurrable for T {}
+
+pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
 	iter: Peekable<I>,
 	radius: usize,
-	ops: VecDeque<isize>,
-	to_output: usize,
-	dnom: usize
+	sum: T,
+	dnom: usize,
+	ops: VecDeque<T>,
+	leading: usize,
+	trailing: usize,
+	done: bool
 }
 
-impl<I: Iterator<Item = usize>> StackBlur<I> {
-	pub fn new(mut iter: I, radius: usize, mut ops: VecDeque<usize>) -> Self {
-		ops.clear();
+impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
+	pub fn new(iter: I, radius: usize, ops: VecDeque<T>) -> Self {
+		Self { iter: iter.peekable(), radius, sum: T::default(), dnom: 0, ops, leading: 0, trailing: 0, done: true }
+	}
 
-		let mut dnom = 0;
+	pub fn into_ops(self) -> VecDeque<T> {
+		self.ops
+	}
 
-		for i in 0..=radius {
-			let item = match iter.next() {
+	fn init(&mut self) {
+		self.done = false;
+
+		self.ops.clear();
+		self.ops.resize_with(self.radius * 2 + 1, T::default);
+
+		self.sum = T::default();
+		self.dnom = 0;
+		self.leading = 0;
+		self.trailing = 0;
+
+		if self.iter.peek().is_none() {
+			self.done = true;
+			return;
+		}
+
+		for sub in 0..=self.radius {
+			let item = match self.iter.next() {
 				Some(item) => item,
 				None => break
 			};
 
-			let mul = radius + 1 - i;
-			stack.push_back(item * mul);
-			dnom += mul;
+			let mul = self.radius + 1 - sub;
+			self.sum += item.clone() * mul;
+			self.dnom += mul;
+
+			if self.dnom > mul {
+				self.trailing += 1;
+			}
+
+			for i in 0..=sub + self.radius {
+				if i < sub {
+					self.ops[i] += item.clone();
+				} else {
+					self.ops[i] -= item.clone();
+				}
+			}
 		}
-
-		Self { iter: iter.peekable(), radius, ops: stack, to_output: 0, dnom }
-	}
-
-	pub fn into_stack(self) -> VecDeque<usize> {
-		self.lops
 	}
 }
 
-impl<I: Iterator<Item = usize>> Iterator for StackBlur<I> {
-	type Item = usize;
+impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
+	type Item = T;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.dnom == 0 || self.to_output >= self.lops.len() { return None }
+		if self.done {
+			self.init();
 
-		let result = self.lops.iter().sum::<usize>() / self.dnom;
-
-		// lop off and append right
-		for (item, i) in self.lops.iter_mut().zip(0usize..) {
-			let mul = self.radius + 1 - self.to_output.abs_diff(i);
-
-			if i <= self.to_output {
-				*item -= *item / mul;
-				self.dnom -= 1;
-			} else {
-				*item += *item / mul;
-				self.dnom += 1;
+			if self.done {
+				return None;
 			}
 		}
 
-		// Idk lol
-		if self.to_output == self.radius {
-			self.lops.pop_front();
-		} else {
-			self.to_output += 1;
+		let result = self.sum.clone() / self.dnom;
+
+		self.sum += self.ops.pop_front().unwrap();
+		self.ops.push_back(T::default());
+
+		if self.leading < self.radius {
+			self.leading += 1;
+			self.dnom += self.radius + 1 - self.leading;
 		}
 
-		if self.lops.len() - self.to_output <= self.radius && self.iter.peek().is_some() {
-			self.lops.push_back(self.iter.next().unwrap());
-			self.dnom += 1;
+		if self.trailing == self.radius && self.iter.peek().is_some() {
+			let item = self.iter.next().unwrap();
+
+			self.sum += item.clone();
+
+			for i in 0..=self.radius * 2 {
+				if i < self.radius {
+					self.ops[i] += item.clone();
+				} else {
+					self.ops[i] -= item.clone();
+				}
+			}
+		} else if self.trailing > 0 {
+			self.dnom -= self.radius + 1 - self.trailing;
+			self.trailing -= 1;
+		} else if self.trailing == 0 {
+			self.done = true;
 		}
 
 		Some(result)
 	}
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
+struct ARGB(i32x4);
+
+impl ARGB {
+	fn from_argb(argb: u32) -> Self {
+		let [a, r, g, b] = argb.to_be_bytes();
+		Self(i32x4::from_array([a as i32, r as i32, g as i32, b as i32]))
+	}
+
+	fn to_argb(self) -> u32 {
+		let [a, r, g, b] = self.0.to_array();
+		u32::from_be_bytes([a as u8, r as u8, g as u8, b as u8])
+	}
+}
+
+impl Add for ARGB {
+	type Output = Self;
+
+	fn add(self, rhs: Self) -> Self::Output {
+		Self(self.0 + rhs.0)
+	}
+}
+
+impl Sub for ARGB {
+	type Output = Self;
+
+	fn sub(self, rhs: Self) -> Self::Output {
+		Self(self.0 - rhs.0)
+	}
+}
+
+impl AddAssign for ARGB {
+	fn add_assign(&mut self, rhs: Self) {
+		*self = *self + rhs;
+	}
+}
+
+impl SubAssign for ARGB {
+	fn sub_assign(&mut self, rhs: Self) {
+		*self = *self - rhs;
+	}
+}
+
+impl Mul<usize> for ARGB {
+	type Output = Self;
+
+	fn mul(self, rhs: usize) -> Self::Output {
+		Self(self.0 * i32x4::splat(rhs as i32))
+	}
+}
+
+impl Div<usize> for ARGB {
+	type Output = Self;
+
+	fn div(self, rhs: usize) -> Self::Output {
+		Self(self.0 / i32x4::splat(rhs as i32))
+	}
+}
+
 pub fn blur_horiz(argb: &mut [u32], width: usize, height: usize, radius: usize) {
 	debug_assert_eq!(argb.len(), width * height);
 
-	let mut stack_r = VecDeque::new();
-	let mut stack_g = VecDeque::new();
-	let mut stack_b = VecDeque::new();
+	let mut ops = VecDeque::new();
 
 	for row in argb.chunks_exact_mut(width) {
 		let not_safe = row as *mut [u32];
 
-		let read_r = unsafe { (*not_safe).iter() }.copied().map(|i| i.to_be_bytes()[1] as usize);
-		let read_g = unsafe { (*not_safe).iter() }.copied().map(|i| i.to_be_bytes()[2] as usize);
-		let read_b = unsafe { (*not_safe).iter() }.copied().map(|i| i.to_be_bytes()[3] as usize);
+		let read = unsafe { (*not_safe).iter() }.copied().map(ARGB::from_argb);
 
-		let mut iter_r = StackBlur::new(read_r, radius, stack_r);
-		let mut iter_g = StackBlur::new(read_g, radius, stack_g);
-		let mut iter_b = StackBlur::new(read_b, radius, stack_b);
+		let mut iter = StackBlur::new(read, radius, ops);
 
 		let mut index = 0usize;
-		while let (Some(r), Some(g), Some(b)) = (iter_r.next(), iter_g.next(), iter_b.next()) {
-			unsafe { (*not_safe)[index] = u32::from_be_bytes([255, r as u8, g as u8, b as u8]) };
+		while let Some(argb) = iter.next() {
+			unsafe { (*not_safe)[index] = argb.to_argb() };
 			index += 1;
 		}
 
-		stack_r = iter_r.into_stack();
-		stack_g = iter_g.into_stack();
-		stack_b = iter_b.into_stack();
+		ops = iter.into_ops();
 	}
 }
 
 pub fn blur_vert(argb: &mut [u32], width: usize, height: usize, radius: usize) {
 	debug_assert_eq!(argb.len(), width * height);
 
-	let mut stack_r = VecDeque::new();
-	let mut stack_g = VecDeque::new();
-	let mut stack_b = VecDeque::new();
+	let mut ops = VecDeque::new();
 
 	for col in 0..width {
 		let not_safe = argb as *mut [u32];
 
-		let read_r = unsafe { (*not_safe).iter() }.skip(col).step_by(width).copied().map(|i| i.to_be_bytes()[1] as usize);
-		let read_g = unsafe { (*not_safe).iter() }.skip(col).step_by(width).copied().map(|i| i.to_be_bytes()[2] as usize);
-		let read_b = unsafe { (*not_safe).iter() }.skip(col).step_by(width).copied().map(|i| i.to_be_bytes()[3] as usize);
+		let read = unsafe { (*not_safe).iter() }.skip(col).step_by(width).copied().map(ARGB::from_argb);
 
-		let mut iter_r = StackBlur::new(read_r, radius, stack_r);
-		let mut iter_g = StackBlur::new(read_g, radius, stack_g);
-		let mut iter_b = StackBlur::new(read_b, radius, stack_b);
+		let mut iter = StackBlur::new(read, radius, ops);
 
 		let mut row = 0usize;
-		while let (Some(r), Some(g), Some(b)) = (iter_r.next(), iter_g.next(), iter_b.next()) {
-			unsafe { (*not_safe)[row * width + col] = u32::from_be_bytes([255, r as u8, g as u8, b as u8]) };
+		while let Some(argb) = iter.next() {
+			unsafe { (*not_safe)[row * width + col] = argb.to_argb() };
 			row += 1;
 		}
 
-		stack_r = iter_r.into_stack();
-		stack_g = iter_g.into_stack();
-		stack_b = iter_b.into_stack();
+		ops = iter.into_ops();
 	}
 }
 
