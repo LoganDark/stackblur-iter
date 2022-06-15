@@ -178,8 +178,9 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	fn init(&mut self) {
 		self.done = false;
 
-		self.ops.iter_mut().for_each(|place| *place = T::default());
-		self.ops.resize_with(self.radius * 2 + 2, T::default);
+		let needed = self.radius * 2 + 2;
+		self.ops.iter_mut().take(needed).for_each(|place| *place = T::default());
+		self.ops.resize_with(needed, T::default);
 
 		self.sum = T::default();
 		self.rate = T::default();
