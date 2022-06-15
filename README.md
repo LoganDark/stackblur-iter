@@ -29,6 +29,11 @@ flexible and generic.
 For a full explanation of the improvements made to the Stackblur algorithm, see
 the `iter` module.
 
+https://user-images.githubusercontent.com/4723091/173788732-2e3e125e-f7b3-4e0f-8582-cc2c148ba437.mp4
+
+*(In the above video, `stackblur-iter` is the centered blur, whereas the
+full-width one is another `stackblur` crate.)*
+
 ## Comparison to the `stackblur` crate
 
 `stackblur` suffers from edge bleeding and flexibility problems. For
