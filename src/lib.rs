@@ -165,7 +165,8 @@ impl Div<usize> for ARGB {
 	type Output = Self;
 
 	fn div(self, rhs: usize) -> Self::Output {
-		Self(self.0 / i32x4::splat(rhs as i32))
+		let [a, r, g, b] = self.0.to_array();
+		Self(i32x4::from_array([a / rhs as i32, r / rhs as i32, g / rhs as i32, b / rhs as i32]))
 	}
 }
 
