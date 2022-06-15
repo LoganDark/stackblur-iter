@@ -178,7 +178,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	fn init(&mut self) {
 		self.done = false;
 
-		self.ops.clear();
+		self.ops.iter_mut().for_each(|place| *place = T::default());
 		self.ops.resize_with(self.radius * 2 + 2, T::default);
 
 		self.sum = T::default();
@@ -215,6 +215,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 	type Item = T;
 
+	#[inline]
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.done {
 			self.init();
