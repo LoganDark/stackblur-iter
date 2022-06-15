@@ -1,11 +1,22 @@
 [package]
-name = 'fast-stack-blur'
+name = 'stackblur-iter'
 version = '0.1.0'
+authors = ['LoganDark']
 edition = '2021'
+rust-version = '1.56'
+description = 'A fast, iterative, correct approach to Stackblur, resulting in a very smooth and high-quality output, with no edge bleeding'
+documentation = 'https://docs.rs/stackblur-iter'
+readme = 'README.md'
+repository = 'https://github.com/LoganDark/stackblur-iter'
+license = 'MIT'
+keywords = ['stackblur', 'blur', 'gaussian']
+categories = ['algorithms', 'graphics', 'rendering']
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+imgref = '^1.9.2'
+blend-srgb = { version = '~0.1.1', optional = true }
 
 [dev-dependencies]
 stackblur = { path = '../stackblur' }

@@ -3,17 +3,22 @@
 version = 3
 
 [[package]]
+name = "blend-srgb"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8a187f5213b0a15f4344b1850bf1bd1f5cbe98eaf61d9914406723a9a2e6426"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
-name = "fast-stack-blur"
-version = "0.1.0"
-dependencies = [
- "stackblur",
-]
+name = "imgref"
+version = "1.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6a8cd48d0dc604999b8beacfbfc2f4eb289a52af175029d4f79fb57b80c7d5"
 
 [[package]]
 name = "itertools"
@@ -29,4 +34,13 @@ name = "stackblur"
 version = "0.1.0"
 dependencies = [
  "itertools",
+]
+
+[[package]]
+name = "stackblur-iter"
+version = "0.1.0"
+dependencies = [
+ "blend-srgb",
+ "imgref",
+ "stackblur",
 ]
