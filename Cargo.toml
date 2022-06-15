@@ -20,4 +20,4 @@ imgref = '^1.9.2'
 blend-srgb = { version = '~0.1.1', optional = true }
 
 [dev-dependencies]
-stackblur = { path = '../stackblur' }
+stackblur = { git = 'https://github.com/LoganDark/stackblur', branch = 'larger-radius' }

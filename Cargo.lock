@@ -32,6 +32,7 @@ dependencies = [
 [[package]]
 name = "stackblur"
 version = "0.1.0"
+source = "git+https://github.com/LoganDark/stackblur?branch=larger-radius#3c8ae04e020e411cbbdbbb9e43e11c02a54d8e3e"
 dependencies = [
  "itertools",
 ]
