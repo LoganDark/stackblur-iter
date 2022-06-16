@@ -1,9 +1,8 @@
 //! A fast, iterative, correct approach to Stackblur, resulting in a very smooth
 //! and high-quality output, with no edge bleeding.
 //!
-//! This crate implements a tweaked version of the Stackblur algorithm requiring
-//! `radius * 2 + 2` elements of space rather than `radius * 2 + 1`, which is a
-//! small tradeoff for much-increased visual quality.
+//! This crate implements a tweaked version of the Stackblur algorithm with much
+//! increased visual quality.
 //!
 //! The algorithm is exposed as an iterator ([`StackBlur`]) that can wrap any
 //! other iterator that yields elements of [`StackBlurrable`]. The [`StackBlur`]

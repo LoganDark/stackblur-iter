@@ -178,7 +178,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	fn init(&mut self) {
 		self.done = false;
 
-		let needed = self.radius * 2 + 2;
+		let needed = self.radius * 2 + 1;
 		self.ops.iter_mut().take(needed).for_each(|place| *place = T::default());
 		self.ops.resize_with(needed, T::default);
 
@@ -203,8 +203,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 				self.trailing += 1;
 			}
 
-			self.ops[sub] -= item.clone() * 2;
-			self.ops[sub + self.radius + 1] += item.clone();
+			self.ops[sub + self.radius] += item.clone();
 		}
 
 		if self.dnom == 0 {
@@ -228,6 +227,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 
 		let result = self.sum.clone() / self.dnom;
 
+		self.rate -= self.ops[self.radius].clone() * 2;
 		self.rate += self.ops.pop_front().unwrap();
 		self.sum += self.rate.clone();
 		self.ops.push_back(T::default());
@@ -242,8 +242,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 			// @formatter:on
 			self.sum += item.clone();
 			self.rate += item.clone();
-			self.ops[self.radius] -= item.clone() * 2;
-			self.ops[self.radius * 2 + 1] += item;
+			*self.ops.back_mut().unwrap() += item;
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
