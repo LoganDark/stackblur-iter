@@ -178,23 +178,25 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	fn init(&mut self) {
 		self.done = false;
 
-		let start = self.radius + 1;
-		let needed = start * 2 + 2;
-		self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
-		self.ops.iter_mut().take(start).for_each(|place| *place = T::default());
-		self.ops.resize_with(start, T::default);
-
-		self.sum = T::default();
-		self.rate = T::default();
-		self.dnom = 0;
-		self.leading = 0;
-		self.trailing = 0;
-
 		for sub in 0..=self.radius {
 			let item = match self.iter.next() {
 				Some(item) => item,
 				None => break
 			};
+
+			if sub == 0 {
+				let start = self.radius + 1;
+				let needed = start * 2 + 2;
+				self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
+				self.ops.iter_mut().take(start).for_each(|place| *place = T::default());
+				self.ops.resize_with(start, T::default);
+
+				self.sum = T::default();
+				self.rate = T::default();
+				self.dnom = 0;
+				self.leading = 0;
+				self.trailing = 0;
+			}
 
 			let mul = self.radius + 1 - sub;
 			self.sum += item.clone() * mul;

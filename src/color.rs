@@ -3,9 +3,9 @@ use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct ARGB([Wrapping<u32>; 4]);
+pub struct Argb([Wrapping<u32>; 4]);
 
-impl ARGB {
+impl Argb {
 	pub const fn from_u32(argb: u32) -> Self {
 		let [a, r, g, b] = argb.to_be_bytes();
 		Self([Wrapping(a as u32), Wrapping(r as u32), Wrapping(g as u32), Wrapping(b as u32)])
@@ -36,7 +36,7 @@ impl ARGB {
 	}
 }
 
-impl Add for ARGB {
+impl Add for Argb {
 	type Output = Self;
 
 	fn add(self, rhs: Self) -> Self::Output {
@@ -46,7 +46,7 @@ impl Add for ARGB {
 	}
 }
 
-impl Sub for ARGB {
+impl Sub for Argb {
 	type Output = Self;
 
 	fn sub(self, rhs: Self) -> Self::Output {
@@ -56,7 +56,7 @@ impl Sub for ARGB {
 	}
 }
 
-impl AddAssign for ARGB {
+impl AddAssign for Argb {
 	fn add_assign(&mut self, rhs: Self) {
 		self.0[0] += rhs.0[0];
 		self.0[1] += rhs.0[1];
@@ -65,7 +65,7 @@ impl AddAssign for ARGB {
 	}
 }
 
-impl SubAssign for ARGB {
+impl SubAssign for Argb {
 	fn sub_assign(&mut self, rhs: Self) {
 		self.0[0] -= rhs.0[0];
 		self.0[1] -= rhs.0[1];
@@ -74,7 +74,7 @@ impl SubAssign for ARGB {
 	}
 }
 
-impl Mul<usize> for ARGB {
+impl Mul<usize> for Argb {
 	type Output = Self;
 
 	fn mul(self, rhs: usize) -> Self::Output {
@@ -84,7 +84,7 @@ impl Mul<usize> for ARGB {
 	}
 }
 
-impl Div<usize> for ARGB {
+impl Div<usize> for Argb {
 	type Output = Self;
 
 	fn div(self, rhs: usize) -> Self::Output {

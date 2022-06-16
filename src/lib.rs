@@ -63,7 +63,7 @@ mod color;
 
 use traits::StackBlurrable;
 use iter::StackBlur;
-use color::ARGB;
+use color::Argb;
 
 /// Blurs a buffer on the X axis.
 ///
@@ -201,7 +201,7 @@ pub fn blur<T, B: StackBlurrable>(
 ///
 /// Note that this function is *linear*. For sRGB, see [`blur_horiz_srgb`].
 pub fn blur_horiz_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz(buffer, radius, |i| ARGB::from_u32(*i), ARGB::to_u32);
+	blur_horiz(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
 }
 
 /// Blurs a buffer of 32-bit ARGB pixels on the Y axis.
@@ -211,7 +211,7 @@ pub fn blur_horiz_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function is *linear*. For sRGB, see [`blur_vert_srgb`].
 pub fn blur_vert_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_vert(buffer, radius, |i| ARGB::from_u32(*i), ARGB::to_u32);
+	blur_vert(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
 }
 
 /// Blurs a buffer of 32-bit ARGB pixels on both axes.
@@ -233,7 +233,7 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Note that this function uses *sRGB*. For linear, see [`blur_horiz_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_horiz_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz(buffer, radius, |i| ARGB::from_u32_srgb(*i), ARGB::to_u32_srgb);
+	blur_horiz(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
 }
 
 /// Blurs a buffer of 32-bit sRGB pixels on the Y axis.
@@ -244,7 +244,7 @@ pub fn blur_horiz_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Note that this function uses *sRGB*. For linear, see [`blur_vert_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_vert_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_vert(buffer, radius, |i| ARGB::from_u32_srgb(*i), ARGB::to_u32_srgb);
+	blur_vert(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
 }
 
 /// Blurs a buffer of 32-bit sRGB pixels on both axes.
