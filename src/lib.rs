@@ -166,15 +166,20 @@ pub fn blur_vert<T, B: StackBlurrable>(
 	let stride = buffer.stride();
 
 	for col in 0..buffer.width() {
-		let iter = SlicePtrStrideIter(unsafe { &(*buf_ptr)[col..] as *const [T] }, &mut to_blurrable, stride);
+		let iter = SlicePtrStrideIter(unsafe { (*buf_ptr).get_unchecked(col..) as *const [T] }, &mut to_blurrable, stride);
 		let mut blur = StackBlur::new(iter, radius, ops);
 
 		let mut ptr = unsafe { (buf_mut_ptr as *mut T).offset(col as isize) };
+		let mut rows_left = buffer.height();
 		while let Some(pixel) = blur.next().map(&mut to_pixel) {
 			// SAFETY: `blur` will always yield the same amount of items
 			unsafe {
 				*ptr = pixel;
-				ptr = ptr.offset(stride as isize);
+				rows_left = rows_left - 1;
+
+				if rows_left > 1 {
+					ptr = ptr.offset(stride as isize);
+				}
 			};
 		}
 
