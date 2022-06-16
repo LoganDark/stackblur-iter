@@ -5,8 +5,8 @@ fn main() {
 
 		coz::thread_init();
 
-		const WIDTH: usize = 3940;
-		const HEIGHT: usize = 2160;
+		const WIDTH: usize = 1280;
+		const HEIGHT: usize = 720;
 
 		let mut buffer = ImgVec::new(vec![0u32; WIDTH * HEIGHT], WIDTH, HEIGHT);
 
