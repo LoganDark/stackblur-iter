@@ -103,7 +103,7 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 		let iter = SlicePtrIter(row, &mut to_blurrable);
 		let mut blur = StackBlur::new(iter, radius, ops);
 
-		let base = row as *mut T;
+		let base = row.cast::<T>();
 		for offset in 0..unsafe { (*row).len() } as isize {
 			unsafe {
 				*base.offset(offset) = match blur.next().map(&mut to_pixel) {
@@ -162,7 +162,7 @@ pub fn blur_vert<T, B: StackBlurrable>(
 		let iter = SlicePtrStrideIter(unsafe { (*buf_ptr).get_unchecked(col..) as *const [T] }, &mut to_blurrable, stride);
 		let mut blur = StackBlur::new(iter, radius, ops);
 
-		let base = unsafe { (buf_mut_ptr as *mut T).offset(col as isize) };
+		let base = unsafe { (buf_mut_ptr.cast::<T>()).add(col) };
 		for row in 0..buffer.height() as isize {
 			unsafe {
 				*base.offset(row * stride as isize) = match blur.next().map(&mut to_pixel) {

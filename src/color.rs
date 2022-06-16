@@ -6,12 +6,12 @@ use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 pub struct ARGB([Wrapping<u32>; 4]);
 
 impl ARGB {
-	pub fn from_u32(argb: u32) -> Self {
+	pub const fn from_u32(argb: u32) -> Self {
 		let [a, r, g, b] = argb.to_be_bytes();
 		Self([Wrapping(a as u32), Wrapping(r as u32), Wrapping(g as u32), Wrapping(b as u32)])
 	}
 
-	pub fn to_u32(self) -> u32 {
+	pub const fn to_u32(self) -> u32 {
 		let [a, r, g, b] = self.0;
 		u32::from_be_bytes([a.0 as u8, r.0 as u8, g.0 as u8, b.0 as u8])
 	}
