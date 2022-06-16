@@ -6,6 +6,9 @@ use std::ops::{Add, AddAssign, Div, Mul, SubAssign};
 ///
 /// This trait is auto-implemented for all types that satisfy its requirements.
 ///
+/// Types that wish to implement this trait should be signed or use explicitly
+/// wrapping arithmetic.
+///
 /// They should have a significantly higher precision than the pixel format that
 /// they represent, as they may be multiplied by hundreds or thousands before
 /// being divided. They should also ideally be `Copy` so that cloning is cheap.
