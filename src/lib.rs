@@ -227,7 +227,7 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Blurs a buffer of 32-bit sRGB pixels on the X axis.
 ///
 /// This is a version of [`blur_horiz`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 1024. Larger radii may overflow.
+/// provide good results for blur radii <= 1536. Larger radii may overflow.
 ///
 /// Note that this function uses *sRGB*. For linear, see [`blur_horiz_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
@@ -238,7 +238,7 @@ pub fn blur_horiz_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Blurs a buffer of 32-bit sRGB pixels on the Y axis.
 ///
 /// This is a version of [`blur_vert`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 1024. Larger radii may overflow.
+/// provide good results for blur radii <= 1536. Larger radii may overflow.
 ///
 /// Note that this function uses *sRGB*. For linear, see [`blur_vert_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]

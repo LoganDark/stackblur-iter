@@ -1,18 +1,19 @@
+use std::num::Wrapping;
 use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct ARGB([i32; 4]);
+pub struct ARGB([Wrapping<u32>; 4]);
 
 impl ARGB {
 	pub fn from_u32(argb: u32) -> Self {
 		let [a, r, g, b] = argb.to_be_bytes();
-		Self([a as i32, r as i32, g as i32, b as i32])
+		Self([Wrapping(a as u32), Wrapping(r as u32), Wrapping(g as u32), Wrapping(b as u32)])
 	}
 
 	pub fn to_u32(self) -> u32 {
 		let [a, r, g, b] = self.0;
-		u32::from_be_bytes([a as u8, r as u8, g as u8, b as u8])
+		u32::from_be_bytes([a.0 as u8, r.0 as u8, g.0 as u8, b.0 as u8])
 	}
 
 	#[cfg(feature = "blend-srgb")]
@@ -21,7 +22,7 @@ impl ARGB {
 
 		let [a, r, g, b] = argb.to_be_bytes();
 
-		Self([cvt(a) as i32, cvt(r) as i32, cvt(g) as i32, cvt(b) as i32])
+		Self([Wrapping(cvt(a) as u32), Wrapping(cvt(r) as u32), Wrapping(cvt(g) as u32), Wrapping(cvt(b) as u32)])
 	}
 
 	#[cfg(feature = "blend-srgb")]
@@ -29,7 +30,7 @@ impl ARGB {
 		use blend_srgb::convert::rgb12_to_srgb8 as cvt;
 
 		let [a, r, g, b] = self.0;
-		let [a, r, g, b] = [a as u16, r as u16, g as u16, b as u16];
+		let [a, r, g, b] = [a.0 as u16, r.0 as u16, g.0 as u16, b.0 as u16];
 
 		u32::from_be_bytes([cvt(a) as u8, cvt(r) as u8, cvt(g) as u8, cvt(b) as u8])
 	}
@@ -78,7 +79,7 @@ impl Mul<usize> for ARGB {
 
 	fn mul(self, rhs: usize) -> Self::Output {
 		let [a, r, g, b] = self.0;
-		let rhs = rhs as i32;
+		let rhs = Wrapping(rhs as u32);
 		Self([a * rhs, r * rhs, g * rhs, b * rhs])
 	}
 }
@@ -88,7 +89,7 @@ impl Div<usize> for ARGB {
 
 	fn div(self, rhs: usize) -> Self::Output {
 		let [a, r, g, b] = self.0;
-		let rhs = rhs as i32;
+		let rhs = Wrapping(rhs as u32);
 		Self([a / rhs, r / rhs, g / rhs, b / rhs])
 	}
 }
