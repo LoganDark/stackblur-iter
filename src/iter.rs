@@ -242,7 +242,8 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 			// @formatter:on
 			self.sum += item.clone();
 			self.rate += item.clone();
-			*self.ops.back_mut().unwrap() += item;
+			// SAFETY: we used push_back earlier
+			*unsafe { self.ops.back_mut().unwrap_unchecked() } += item;
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
