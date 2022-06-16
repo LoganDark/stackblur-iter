@@ -178,9 +178,11 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	fn init(&mut self) {
 		self.done = false;
 
-		let needed = self.radius * 2 + 1;
-		self.ops.iter_mut().take(needed).for_each(|place| *place = T::default());
-		self.ops.resize_with(needed, T::default);
+		let start = self.radius;
+		let needed = start * 2 + 1;
+		self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
+		self.ops.iter_mut().take(start).for_each(|place| *place = T::default());
+		self.ops.resize_with(start, T::default);
 
 		self.sum = T::default();
 		self.rate = T::default();
@@ -203,7 +205,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 				self.trailing += 1;
 			}
 
-			self.ops[sub + self.radius] += item.clone();
+			self.ops.push_back(item);
 		}
 
 		if self.dnom == 0 {
@@ -230,7 +232,6 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 		self.rate -= self.ops[self.radius].clone() * 2;
 		self.rate += self.ops.pop_front().unwrap();
 		self.sum += self.rate.clone();
-		self.ops.push_back(T::default());
 
 		if self.leading < self.radius {
 			self.leading += 1;
@@ -242,8 +243,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 			// @formatter:on
 			self.sum += item.clone();
 			self.rate += item.clone();
-			// SAFETY: we used push_back earlier
-			*unsafe { self.ops.back_mut().unwrap_unchecked() } += item;
+			self.ops.push_back(item);
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
