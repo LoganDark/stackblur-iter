@@ -1,5 +1,3 @@
-#![cfg(feature = "coz")]
-
 use imgref::ImgVec;
 use stackblur_iter::blur_srgb;
 
