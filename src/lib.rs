@@ -57,14 +57,6 @@ use imgref::ImgRefMut;
 #[cfg(test)]
 mod test;
 
-#[allow(unused_macros)]
-macro_rules! coz {
-	($name:ident $args:tt) => {
-		#[cfg(feature = "coz")]
-		coz::$name!$args;
-	}
-}
-
 pub mod traits;
 pub mod iter;
 mod color;
