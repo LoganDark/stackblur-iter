@@ -151,6 +151,14 @@ pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
 	done: bool
 }
 
+#[allow(unused_macros)]
+macro_rules! coz {
+	($name:ident $args:tt) => {
+		#[cfg(feature = "coz")]
+		coz::$name!$args;
+	}
+}
+
 impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 	/// Creates a new [`StackBlur`] from the provided iterator, radius, and
 	/// [`VecDeque`].
