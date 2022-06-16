@@ -104,9 +104,9 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 		let mut blur = StackBlur::new(iter, radius, ops);
 
 		let base = row.cast::<T>();
-		for offset in 0..unsafe { (*row).len() } as isize {
+		for offset in 0..unsafe { (*row).len() } {
 			unsafe {
-				*base.offset(offset) = match blur.next().map(&mut to_pixel) {
+				*base.add(offset) = match blur.next().map(&mut to_pixel) {
 					Some(pixel) => pixel,
 					None => break
 				};
@@ -163,9 +163,9 @@ pub fn blur_vert<T, B: StackBlurrable>(
 		let mut blur = StackBlur::new(iter, radius, ops);
 
 		let base = unsafe { (buf_mut_ptr.cast::<T>()).add(col) };
-		for row in 0..buffer.height() as isize {
+		for row in 0..buffer.height() {
 			unsafe {
-				*base.offset(row * stride as isize) = match blur.next().map(&mut to_pixel) {
+				*base.add(row * stride) = match blur.next().map(&mut to_pixel) {
 					Some(pixel) => pixel,
 					None => break
 				};
