@@ -45,7 +45,7 @@
 //! that can be used to interact with 2D image buffers, due to the fact that
 //! doing so manually involves unsafe code (if you want no-copy).
 
-#![feature(portable_simd)]
+#![feature(portable_simd, let_chains)]
 #![cfg_attr(test, feature(test))]
 
 use std::collections::VecDeque;
