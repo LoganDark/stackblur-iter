@@ -240,13 +240,16 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 			self.dnom += self.radius + 1 - self.leading;
 		}
 
-		// @formatter:off
-		if self.radius > 0 && self.trailing == self.radius && let Some(item) = self.iter.next() {
-			// @formatter:on
-			self.sum += item.clone();
-			self.rate += item.clone();
-			self.ops[self.radius] -= item.clone() * 2;
-			self.ops.push_back(item);
+		if self.radius > 0 && self.trailing == self.radius {
+			if let Some(item) = self.iter.next() {
+				self.sum += item.clone();
+				self.rate += item.clone();
+				self.ops[self.radius] -= item.clone() * 2;
+				self.ops.push_back(item);
+			} else {
+				self.dnom -= self.radius + 1 - self.trailing;
+				self.trailing -= 1;
+			}
 		} else if self.trailing > 0 {
 			self.dnom -= self.radius + 1 - self.trailing;
 			self.trailing -= 1;
