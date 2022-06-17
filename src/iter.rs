@@ -154,7 +154,7 @@ impl<B: StackBlurrable> StackBlur<B> {
 		if let Some(item) = item {
 			if index == 0 {
 				let start = self.radius + 1;
-				let needed = start * 2 + 2;
+				let needed = self.radius * 2 + 2;
 				self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
 				self.ops.iter_mut().take(start).for_each(|place| *place = B::default());
 				self.ops.resize_with(start, B::default);
