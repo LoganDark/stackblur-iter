@@ -172,7 +172,6 @@ impl<B: StackBlurrable> StackBlur<B> {
 			self.rate += item.clone();
 			self.dnom += mul;
 
-			self.ops[index] -= item.clone() * 2;
 			self.ops.push_back(item);
 
 			self.state = if index > self.radius {
@@ -196,6 +195,7 @@ impl<B: StackBlurrable> StackBlur<B> {
 		let result = self.sum.clone() / self.dnom;
 
 		self.rate += self.ops.pop_front().unwrap();
+		self.rate -= self.ops[self.radius].clone() * 2;
 		self.sum += self.rate.clone();
 
 		if leading < self.radius {
@@ -207,7 +207,6 @@ impl<B: StackBlurrable> StackBlur<B> {
 			if let Some(item) = item {
 				self.sum += item.clone();
 				self.rate += item.clone();
-				self.ops[self.radius] -= item.clone() * 2;
 				self.ops.push_back(item);
 			} else if self.radius > 0 {
 				self.dnom -= self.radius + 1 - trailing;
