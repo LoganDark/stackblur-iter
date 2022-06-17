@@ -148,7 +148,8 @@ pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
 	ops: VecDeque<T>,
 	leading: usize,
 	trailing: usize,
-	done: bool
+	done: bool,
+	first: bool
 }
 
 impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
@@ -166,7 +167,8 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
 			ops,
 			leading: 0,
 			trailing: 0,
-			done: true
+			done: true,
+			first: true
 		}
 	}
 
@@ -225,7 +227,7 @@ impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
 		if self.done {
 			self.init();
 
-			if self.done {
+			if !std::mem::replace(&mut self.first, false) {
 				return None;
 			}
 		}
