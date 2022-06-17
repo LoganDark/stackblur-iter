@@ -160,7 +160,7 @@ impl<T> Iterator for ColsIterMut<T> {
 pub fn blur_horiz<T, B: StackBlurrable>(
 	buf: &mut ImgRefMut<T>,
 	radius: usize,
-	mut to_blurrable: impl FnMut(&T) -> B,
+	to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
 	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
@@ -185,7 +185,7 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 pub fn blur_vert<T, B: StackBlurrable>(
 	buf: &mut ImgRefMut<T>,
 	radius: usize,
-	mut to_blurrable: impl FnMut(&T) -> B,
+	to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
 	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
@@ -215,7 +215,7 @@ pub fn blur_vert<T, B: StackBlurrable>(
 pub fn blur<T, B: StackBlurrable>(
 	buf: &mut ImgRefMut<T>,
 	radius: usize,
-	mut to_blurrable: impl FnMut(&T) -> B,
+	to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
 	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
