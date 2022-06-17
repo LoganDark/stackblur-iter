@@ -1,5 +1,5 @@
-//! This module implements the [`StackBlur`] struct and the improved version of
-//! the Stackblur algorithm.
+//! This module implements the [`StackBlur`] generator, the [`StackBlurIter`]
+//! iterator, and an improved version of the Stackblur algorithm.
 //!
 //! ## The improved Stackblur algorithm
 //!
@@ -105,6 +105,145 @@ use std::collections::VecDeque;
 
 use crate::traits::StackBlurrable;
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct StackBlur<B: StackBlurrable> {
+	radius: usize,
+	sum: B,
+	rate: B,
+	dnom: usize,
+	ops: VecDeque<B>,
+	state: State
+}
+
+impl<B: StackBlurrable> StackBlur<B> {
+	pub fn with_ops(radius: usize, ops: VecDeque<B>) -> Self {
+		Self {
+			radius,
+			sum: B::default(),
+			rate: B::default(),
+			dnom: 0,
+			ops,
+			state: State::Preload { index: 0, trailing: 0 }
+		}
+	}
+
+	pub fn new(radius: usize) -> Self {
+		Self::with_ops(radius, VecDeque::new())
+	}
+
+	pub fn into_ops(self) -> VecDeque<B> {
+		self.ops
+	}
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum State {
+	Preload {
+		index: usize,
+		trailing: usize
+	},
+
+	Main {
+		leading: usize,
+		trailing: usize
+	}
+}
+
+impl<B: StackBlurrable> StackBlur<B> {
+	fn preload(&mut self, index: usize, trailing: usize, item: Option<B>) -> Option<B> {
+		if let Some(item) = item {
+			if index == 0 {
+				let start = self.radius + 1;
+				let needed = start * 2 + 2;
+				self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
+				self.ops.iter_mut().take(start).for_each(|place| *place = B::default());
+				self.ops.resize_with(start, B::default);
+
+				self.sum = B::default();
+				self.rate = B::default();
+				self.dnom = 0;
+			} else if index > self.radius {
+				self.state = State::Main { leading: 0, trailing };
+				return Some(self.main(0, trailing, Some(item)));
+			}
+
+			let mul = self.radius + 1 - index;
+			self.sum += item.clone() * mul;
+			self.rate += item.clone();
+			self.dnom += mul;
+
+			self.ops[index] -= item.clone() * 2;
+			self.ops.push_back(item);
+
+			self.state = if index > self.radius {
+				State::Main { leading: 0, trailing }
+			} else if self.dnom > mul {
+				State::Preload { index: index + 1, trailing: trailing + 1 }
+			} else {
+				State::Preload { index: index + 1, trailing }
+			};
+
+			None
+		} else if index == 0 {
+			None
+		} else {
+			self.state = State::Main { leading: 0, trailing };
+			Some(self.main(0, trailing, None))
+		}
+	}
+
+	fn main(&mut self, mut leading: usize, mut trailing: usize, item: Option<B>) -> B {
+		let result = self.sum.clone() / self.dnom;
+
+		self.rate += self.ops.pop_front().unwrap();
+		self.sum += self.rate.clone();
+
+		if leading < self.radius {
+			leading += 1;
+			self.dnom += self.radius + 1 - leading;
+		}
+
+		if self.radius == 0 || trailing == self.radius {
+			if let Some(item) = item {
+				self.sum += item.clone();
+				self.rate += item.clone();
+				self.ops[self.radius] -= item.clone() * 2;
+				self.ops.push_back(item);
+			} else if self.radius > 0 {
+				self.dnom -= self.radius + 1 - trailing;
+				trailing -= 1;
+			}
+
+			self.state = State::Main { leading, trailing };
+		} else if trailing > 0 {
+			assert!(item.is_none(), "fed item is not being consumed");
+			self.dnom -= self.radius + 1 - trailing;
+			trailing -= 1;
+			self.state = State::Main { leading, trailing };
+		} else if trailing == 0 {
+			assert!(item.is_none(), "fed item is not being consumed");
+			self.state = State::Preload { index: 0, trailing: 0 };
+		}
+
+		result
+	}
+
+	/// Feeds the generator one item. This may return `None` while the generator
+	/// is warming up (up to the first `radius + 1` calls), but it will
+	/// eventually start returning `Some`.
+	///
+	/// This method can panic if you feed it `Some` too soon after feeding it
+	/// `None`. You must retrieve all items using `feed(None)` before you start
+	/// feeding it `Some` again.
+	#[inline]
+	pub fn feed(&mut self, item: Option<B>) -> Option<B> {
+		match self.state {
+			State::Preload { index, trailing } => self.preload(index, trailing, item),
+			State::Main { leading, trailing } => Some(self.main(leading, trailing, item))
+		}
+	}
+}
+
 /// An iterator that implements an improved Stackblur algorithm.
 ///
 /// For any [`StackBlurrable`] element `T` and any iterator `I` over items of
@@ -139,124 +278,49 @@ use crate::traits::StackBlurrable;
 ///
 /// After using the [`StackBlur`], you can retrieve the [`VecDeque`] back out
 /// of it by calling [`StackBlur::into_ops`].
-pub struct StackBlur<T: StackBlurrable, I: Iterator<Item = T>> {
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct StackBlurIter<B: StackBlurrable, I: Iterator<Item = B>> {
 	iter: I,
-	radius: usize,
-	sum: T,
-	rate: T,
-	dnom: usize,
-	ops: VecDeque<T>,
-	leading: usize,
-	trailing: usize,
-	done: bool
+	generator: StackBlur<B>,
+	resetting: bool
 }
 
-impl<T: StackBlurrable, I: Iterator<Item = T>> StackBlur<T, I> {
+impl<B: StackBlurrable, I: Iterator<Item = B>> StackBlurIter<B, I> {
 	/// Creates a new [`StackBlur`] from the provided iterator, radius, and
 	/// [`VecDeque`].
 	///
 	/// The iterator is not advanced until a call to [`StackBlur::next`].
-	pub fn new(iter: I, radius: usize, ops: VecDeque<T>) -> Self {
-		Self {
-			iter,
-			radius,
-			sum: T::default(),
-			rate: T::default(),
-			dnom: 0,
-			ops,
-			leading: 0,
-			trailing: 0,
-			done: true
-		}
+	#[inline]
+	pub fn new(iter: I, radius: usize, ops: VecDeque<B>) -> Self {
+		Self { iter, generator: StackBlur::with_ops(radius, ops), resetting: false }
 	}
 
 	/// Consumes this [`StackBlur`] and returns the inner [`VecDeque`].
-	pub fn into_ops(self) -> VecDeque<T> {
-		self.ops
-	}
-
-	fn init(&mut self) {
-		self.done = false;
-
-		for sub in 0..=self.radius {
-			let item = match self.iter.next() {
-				Some(item) => item,
-				None => break
-			};
-
-			if sub == 0 {
-				let start = self.radius + 1;
-				let needed = start * 2 + 2;
-				self.ops.reserve(needed.saturating_sub(self.ops.capacity()));
-				self.ops.iter_mut().take(start).for_each(|place| *place = T::default());
-				self.ops.resize_with(start, T::default);
-
-				self.sum = T::default();
-				self.rate = T::default();
-				self.dnom = 0;
-				self.leading = 0;
-				self.trailing = 0;
-			}
-
-			let mul = self.radius + 1 - sub;
-			self.sum += item.clone() * mul;
-			self.rate += item.clone();
-			self.dnom += mul;
-
-			if self.dnom > mul {
-				self.trailing += 1;
-			}
-
-			self.ops[sub] -= item.clone() * 2;
-			self.ops.push_back(item);
-		}
-
-		if self.dnom == 0 {
-			self.done = true;
-		}
+	#[inline]
+	pub fn into_ops(self) -> VecDeque<B> {
+		self.generator.into_ops()
 	}
 }
 
-impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlur<T, I> {
+impl<T: StackBlurrable, I: Iterator<Item = T>> Iterator for StackBlurIter<T, I> {
 	type Item = T;
 
 	#[inline]
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.done {
-			self.init();
-
-			if self.done {
-				return None;
+		if self.resetting {
+			let result = self.generator.feed(None);
+			self.resetting = result.is_some();
+			result
+		} else {
+			for item in &mut self.iter {
+				if let Some(result) = self.generator.feed(Some(item)) {
+					return Some(result);
+				}
 			}
+
+			let result = self.generator.feed(None);
+			self.resetting = result.is_some();
+			result
 		}
-
-		let result = self.sum.clone() / self.dnom;
-
-		self.rate += self.ops.pop_front().unwrap();
-		self.sum += self.rate.clone();
-
-		if self.leading < self.radius {
-			self.leading += 1;
-			self.dnom += self.radius + 1 - self.leading;
-		}
-
-		if self.radius > 0 && self.trailing == self.radius {
-			if let Some(item) = self.iter.next() {
-				self.sum += item.clone();
-				self.rate += item.clone();
-				self.ops[self.radius] -= item.clone() * 2;
-				self.ops.push_back(item);
-			} else {
-				self.dnom -= self.radius + 1 - self.trailing;
-				self.trailing -= 1;
-			}
-		} else if self.trailing > 0 {
-			self.dnom -= self.radius + 1 - self.trailing;
-			self.trailing -= 1;
-		} else if self.trailing == 0 {
-			self.done = true;
-		}
-
-		Some(result)
 	}
 }

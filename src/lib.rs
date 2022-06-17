@@ -51,7 +51,7 @@ use std::collections::VecDeque;
 
 pub extern crate imgref;
 
-use imgref::ImgRefMut;
+use imgref::{Img, ImgRefMut};
 
 #[cfg(test)]
 mod test;
@@ -61,8 +61,93 @@ pub mod iter;
 mod color;
 
 use traits::StackBlurrable;
-use iter::StackBlur;
+use iter::StackBlurIter;
 use color::Argb;
+use crate::iter::StackBlur;
+
+struct RowsIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(Img<*const [T]>, (usize, usize), F);
+
+impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for RowsIter<T, B, F> {
+	type Item = B;
+
+	#[inline]
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.1.1 >= self.0.height() {
+			None
+		} else if self.1.0 >= self.0.width() {
+			self.1.0 = 0;
+			self.1.1 += 1;
+			None
+		} else {
+			let elem = unsafe { (**self.0.buf()).get_unchecked(self.1.1 * self.0.stride() + self.1.0) };
+			self.1.0 += 1;
+			Some(self.2(elem))
+		}
+	}
+}
+
+struct RowsIterMut<T>(Img<*mut [T]>, (usize, usize));
+
+impl<T> Iterator for RowsIterMut<T> {
+	type Item = *mut T;
+
+	#[inline]
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.1.1 >= self.0.height() {
+			None
+		} else if self.1.0 >= self.0.width() {
+			self.1.0 = 0;
+			self.1.1 += 1;
+			None
+		} else {
+			let ptr = unsafe { (**self.0.buf()).get_unchecked_mut(self.1.1 * self.0.stride() + self.1.0) as *mut T };
+			self.1.0 += 1;
+			Some(ptr)
+		}
+	}
+}
+
+struct ColsIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(Img<*const [T]>, (usize, usize), F);
+
+impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for ColsIter<T, B, F> {
+	type Item = B;
+
+	#[inline]
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.1.0 >= self.0.width() {
+			None
+		} else if self.1.1 >= self.0.height() {
+			self.1.0 += 1;
+			self.1.1 = 0;
+			None
+		} else {
+			let elem = unsafe { (**self.0.buf()).get_unchecked(self.1.1 * self.0.stride() + self.1.0) };
+			self.1.1 += 1;
+			Some(self.2(elem))
+		}
+	}
+}
+
+struct ColsIterMut<T>(Img<*mut [T]>, (usize, usize));
+
+impl<T> Iterator for ColsIterMut<T> {
+	type Item = *mut T;
+
+	#[inline]
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.1.0 >= self.0.width() {
+			None
+		} else if self.1.1 >= self.0.height() {
+			self.1.0 += 1;
+			self.1.1 = 0;
+			None
+		} else {
+			let ptr = unsafe { (**self.0.buf()).get_unchecked_mut(self.1.1 * self.0.stride() + self.1.0) as *mut T };
+			self.1.1 += 1;
+			Some(ptr)
+		}
+	}
+}
 
 /// Blurs a buffer on the X axis.
 ///
@@ -73,46 +158,19 @@ use color::Argb;
 /// 32-bit integers), you can use [`blur_horiz_argb`] (linear RGB) or
 /// [`blur_horiz_srgb`] (for sRGB).
 pub fn blur_horiz<T, B: StackBlurrable>(
-	buffer: &mut ImgRefMut<T>,
+	buf: &mut ImgRefMut<T>,
 	radius: usize,
 	mut to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
-	let mut ops = VecDeque::new();
+	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
 
-	struct SlicePtrIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(*const [T], F);
+	let rows_iter = RowsIter(buf_ptr, (0, 0), to_blurrable);
+	let mut blur = StackBlurIter::new(rows_iter, radius, VecDeque::new());
 
-	impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for SlicePtrIter<T, B, F> {
-		type Item = B;
-
-		#[inline]
-		fn next(&mut self) -> Option<Self::Item> {
-			if let Some((first, rest)) = unsafe { (*self.0).split_first() } {
-				self.0 = rest as *const [T];
-				Some(self.1(first))
-			} else {
-				None
-			}
-		}
-	}
-
-	for row in buffer.rows_mut() {
-		let row = row as *mut [T];
-
-		let iter = SlicePtrIter(row, &mut to_blurrable);
-		let mut blur = StackBlur::new(iter, radius, ops);
-
-		let base = row.cast::<T>();
-		for offset in 0..unsafe { (*row).len() } {
-			unsafe {
-				*base.add(offset) = match blur.next().map(&mut to_pixel) {
-					Some(pixel) => pixel,
-					None => break
-				};
-			}
-		}
-
-		ops = blur.into_ops();
+	for row in buf.rows_mut() {
+		row.fill_with(|| to_pixel(blur.next().unwrap()));
+		blur.next();
 	}
 }
 
@@ -125,53 +183,24 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 /// 32-bit integers), you can use [`blur_vert_argb`] (linear RGB) or
 /// [`blur_vert_srgb`] (for sRGB).
 pub fn blur_vert<T, B: StackBlurrable>(
-	buffer: &mut ImgRefMut<T>,
+	buf: &mut ImgRefMut<T>,
 	radius: usize,
 	mut to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
-	let mut ops = VecDeque::new();
+	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
+	let buf_ptr_mut = Img::new_stride(*buf.buf_mut() as *mut [T], buf.width(), buf.height(), buf.stride());
 
-	struct SlicePtrStrideIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(*const [T], F, usize);
+	let cols_iter = ColsIter(buf_ptr, (0, 0), to_blurrable);
+	let mut blur = StackBlurIter::new(cols_iter, radius, VecDeque::new());
+	let mut cols_iter = ColsIterMut(buf_ptr_mut, (0, 0));
 
-	impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for SlicePtrStrideIter<T, B, F> {
-		type Item = B;
-
-		#[inline]
-		fn next(&mut self) -> Option<Self::Item> {
-			unsafe {
-				let len = (*self.0).len();
-
-				if len > 0 {
-					let item = &*(self.0 as *mut T);
-					self.0 = (*self.0).get_unchecked(std::cmp::min(len, self.2)..) as *const [T];
-					Some(self.1(item))
-				} else {
-					None
-				}
-			}
-		}
-	}
-
-	let buf_mut_ptr = *buffer.buf_mut() as *mut [T];
-	let buf_ptr = buf_mut_ptr as *const [T];
-	let stride = buffer.stride();
-
-	for col in 0..buffer.width() {
-		let iter = SlicePtrStrideIter(unsafe { (*buf_ptr).get_unchecked(col..) as *const [T] }, &mut to_blurrable, stride);
-		let mut blur = StackBlur::new(iter, radius, ops);
-
-		let base = unsafe { (buf_mut_ptr.cast::<T>()).add(col) };
-		for row in 0..buffer.height() {
-			unsafe {
-				*base.add(row * stride) = match blur.next().map(&mut to_pixel) {
-					Some(pixel) => pixel,
-					None => break
-				};
-			}
+	for _ in 0..buf.width() {
+		for pixel in &mut cols_iter {
+			unsafe { *pixel = to_pixel(blur.next().unwrap()) };
 		}
 
-		ops = blur.into_ops();
+		blur.next();
 	}
 }
 
@@ -184,13 +213,50 @@ pub fn blur_vert<T, B: StackBlurrable>(
 /// 32-bit integers), you can use [`blur_argb`] (linear RGB) or [`blur_srgb`]
 /// (for sRGB).
 pub fn blur<T, B: StackBlurrable>(
-	buffer: &mut ImgRefMut<T>,
+	buf: &mut ImgRefMut<T>,
 	radius: usize,
 	mut to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
-	blur_horiz(buffer, radius, &mut to_blurrable, &mut to_pixel);
-	blur_vert(buffer, radius, to_blurrable, to_pixel);
+	let buf_ptr = Img::new_stride(*buf.buf() as *const [T], buf.width(), buf.height(), buf.stride());
+	let buf_ptr_mut = Img::new_stride(*buf.buf_mut() as *mut [T], buf.width(), buf.height(), buf.stride());
+
+	let rows_iter = RowsIter(buf_ptr, (0, 0), to_blurrable);
+	let mut blur = StackBlurIter::new(rows_iter, radius, VecDeque::new());
+	let mut rows_iter = RowsIterMut(buf_ptr_mut, (0, 0));
+	let mut generators = vec![StackBlur::new(radius); buf.width()];
+
+	for _ in 0..buf.height() {
+		let mut preloaded = false;
+
+		for (result, generator) in (&mut blur).zip(generators.iter_mut()) {
+			if let Some(result) = generator.feed(Some(result)) {
+				preloaded = true;
+				unsafe { *rows_iter.next().unwrap() = to_pixel(result) };
+			}
+		}
+
+		if preloaded {
+			rows_iter.next();
+		}
+	}
+
+	loop {
+		let mut offloaded = false;
+
+		for generator in generators.iter_mut() {
+			if let Some(result) = generator.feed(None) {
+				offloaded = true;
+				unsafe { *rows_iter.next().unwrap() = to_pixel(result) };
+			}
+		}
+
+		if offloaded {
+			rows_iter.next();
+		} else {
+			break;
+		}
+	}
 }
 
 /// Blurs a buffer of 32-bit ARGB pixels on the X axis.
@@ -220,8 +286,7 @@ pub fn blur_vert_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function is *linear*. For sRGB, see [`blur_srgb`].
 pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz_argb(buffer, radius);
-	blur_vert_argb(buffer, radius);
+	blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
 }
 
 /// Blurs a buffer of 32-bit sRGB pixels on the X axis.
@@ -254,6 +319,5 @@ pub fn blur_vert_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz_srgb(buffer, radius);
-	blur_vert_srgb(buffer, radius);
+	blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
 }
