@@ -208,12 +208,14 @@ impl<B: StackBlurrable> StackBlur<B> {
 				self.sum += item.clone();
 				self.rate += item.clone();
 				self.ops.push_back(item);
+				self.state = State::Main { leading, trailing };
 			} else if self.radius > 0 {
 				self.dnom -= self.radius + 1 - trailing;
 				trailing -= 1;
+				self.state = State::Main { leading, trailing };
+			} else {
+				self.state = State::Preload { index: 0, trailing: 0 };
 			}
-
-			self.state = State::Main { leading, trailing };
 		} else if trailing > 0 {
 			assert!(item.is_none(), "fed item is not being consumed");
 			self.dnom -= self.radius + 1 - trailing;
