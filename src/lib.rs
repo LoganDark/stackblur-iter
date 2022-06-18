@@ -125,8 +125,19 @@ pub fn blur<T, B: StackBlurrable>(
 	mut to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
-	blur_horiz(buffer, radius, &mut to_blurrable, &mut to_pixel);
-	blur_vert(buffer, radius, to_blurrable, to_pixel);
+	let mut ops = VecDeque::new();
+
+	for (write, read) in unsafe { buffer.iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
+		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
+		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
+		ops = blur.into_ops();
+	}
+
+	for (write, read) in unsafe { buffer.iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
+		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
+		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
+		ops = blur.into_ops();
+	}
 }
 
 /// Blurs a buffer of 32-bit ARGB pixels on the X axis.
@@ -156,8 +167,7 @@ pub fn blur_vert_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function is *linear*. For sRGB, see [`blur_srgb`].
 pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz_argb(buffer, radius);
-	blur_vert_argb(buffer, radius);
+	blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
 }
 
 /// Blurs a buffer of 32-bit sRGB pixels on the X axis.
@@ -190,6 +200,5 @@ pub fn blur_vert_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz_srgb(buffer, radius);
-	blur_vert_srgb(buffer, radius);
+	blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
 }
