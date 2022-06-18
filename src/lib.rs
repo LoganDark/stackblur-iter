@@ -52,6 +52,7 @@ use std::collections::VecDeque;
 pub extern crate imgref;
 
 use imgref::ImgRefMut;
+use imgref_iter::traits::{ImgIter, ImgIterPtrMut};
 
 #[cfg(test)]
 mod test;
@@ -80,38 +81,9 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 ) {
 	let mut ops = VecDeque::new();
 
-	struct SlicePtrIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(*const [T], F);
-
-	impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for SlicePtrIter<T, B, F> {
-		type Item = B;
-
-		#[inline]
-		fn next(&mut self) -> Option<Self::Item> {
-			if let Some((first, rest)) = unsafe { (*self.0).split_first() } {
-				self.0 = rest as *const [T];
-				Some(self.1(first))
-			} else {
-				None
-			}
-		}
-	}
-
-	for row in buffer.rows_mut() {
-		let row = row as *mut [T];
-
-		let iter = SlicePtrIter(row, &mut to_blurrable);
-		let mut blur = StackBlur::new(iter, radius, ops);
-
-		let base = row.cast::<T>();
-		for offset in 0..unsafe { (*row).len() } {
-			unsafe {
-				*base.add(offset) = match blur.next().map(&mut to_pixel) {
-					Some(pixel) => pixel,
-					None => break
-				};
-			}
-		}
-
+	for (write, read) in unsafe { buffer.iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
+		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
+		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 		ops = blur.into_ops();
 	}
 }
@@ -132,45 +104,9 @@ pub fn blur_vert<T, B: StackBlurrable>(
 ) {
 	let mut ops = VecDeque::new();
 
-	struct SlicePtrStrideIter<T, B: StackBlurrable, F: FnMut(&T) -> B>(*const [T], F, usize);
-
-	impl<T, B: StackBlurrable, F: FnMut(&T) -> B> Iterator for SlicePtrStrideIter<T, B, F> {
-		type Item = B;
-
-		#[inline]
-		fn next(&mut self) -> Option<Self::Item> {
-			unsafe {
-				let len = (*self.0).len();
-
-				if len > 0 {
-					let item = &*(self.0 as *mut T);
-					self.0 = (*self.0).get_unchecked(std::cmp::min(len, self.2)..) as *const [T];
-					Some(self.1(item))
-				} else {
-					None
-				}
-			}
-		}
-	}
-
-	let buf_mut_ptr = *buffer.buf_mut() as *mut [T];
-	let buf_ptr = buf_mut_ptr as *const [T];
-	let stride = buffer.stride();
-
-	for col in 0..buffer.width() {
-		let iter = SlicePtrStrideIter(unsafe { (*buf_ptr).get_unchecked(col..) as *const [T] }, &mut to_blurrable, stride);
-		let mut blur = StackBlur::new(iter, radius, ops);
-
-		let base = unsafe { (buf_mut_ptr.cast::<T>()).add(col) };
-		for row in 0..buffer.height() {
-			unsafe {
-				*base.add(row * stride) = match blur.next().map(&mut to_pixel) {
-					Some(pixel) => pixel,
-					None => break
-				};
-			}
-		}
-
+	for (write, read) in unsafe { buffer.iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
+		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
+		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 		ops = blur.into_ops();
 	}
 }

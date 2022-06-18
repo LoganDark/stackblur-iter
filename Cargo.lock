@@ -31,6 +31,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d6a8cd48d0dc604999b8beacfbfc2f4eb289a52af175029d4f79fb57b80c7d5"
 
 [[package]]
+name = "imgref-iter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbde5afca2d3b44e8ad9ca99a847a92fe0e3198378ccd440dd28cf81c633ea5c"
+dependencies = [
+ "imgref",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,5 +75,6 @@ dependencies = [
  "blend-srgb",
  "coz",
  "imgref",
+ "imgref-iter",
  "stackblur",
 ]
