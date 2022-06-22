@@ -89,6 +89,41 @@ pub fn blur<T, B: StackBlurrable>(
 	}
 }
 
+/// Blurs a buffer in parallel, assuming one element per pixel.
+///
+/// The provided closures are used to convert from the buffer's native pixel
+/// format to [`StackBlurrable`] values that can be consumed by [`StackBlur`].
+#[cfg(any(doc, feature = "rayon"))]
+pub fn par_blur<T: Send + Sync, B: StackBlurrable + Send + Sync>(
+	buffer: &mut ImgRefMut<T>,
+	radius: usize,
+	to_blurrable: impl Fn(&T) -> B + Sync,
+	to_pixel: impl Fn(B) -> T + Sync
+) {
+	use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
+	#[cfg(not(doc))]
+	use rayon::iter::{ParallelBridge, ParallelIterator};
+
+	let mut opses = vec![Some(VecDeque::new()); rayon::current_num_threads()];
+	let opses_ptr = unsafe { unique::Unique::new_unchecked(opses.as_mut_ptr()) };
+
+	let buffer_ptr = buffer.as_mut_ptr();
+	let rows = unsafe { buffer_ptr.iter_rows_ptr_mut() }.zip(buffer.iter_rows());
+	let cols = unsafe { buffer_ptr.iter_cols_ptr_mut() }.zip(buffer.iter_cols());
+
+	// This relies on an implementation detail (or bug) in `rayon` where chained
+	// iterators that are then bridged will still execute in sequence.
+	//
+	// This may have to change in the future if that behavior is not guaranteed.
+	rows.chain(cols).par_bridge().for_each(|(write, read)| {
+		let ops_ref = unsafe { &mut *opses_ptr.as_ptr().add(rayon::current_thread_index().unwrap()) };
+		let ops = ops_ref.take().unwrap();
+		let mut blur = StackBlur::new(read.map(&to_blurrable), radius, ops);
+		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
+		ops_ref.replace(blur.into_ops());
+	});
+}
+
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
 ///
 /// This is a version of [`blur`] with pre-filled conversion routines that
@@ -102,10 +137,32 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 /// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB).
 ///
 /// This is a version of [`blur`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 1024. Larger radii may overflow.
+/// provide good results for blur radii <= 1536. Larger radii may overflow.
 ///
 /// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 	blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
+}
+
+/// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB) in parallel.
+///
+/// This is a version of [`par_blur`] with pre-filled conversion routines that
+/// provide good results for blur radii <= 4096. Larger radii may overflow.
+///
+/// Note that this function is *linear*. For sRGB, see [`blur_srgb`].
+#[cfg(any(doc, feature = "rayon"))]
+pub fn par_blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
+	par_blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
+}
+
+/// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB) in parallel.
+///
+/// This is a version of [`par_blur`] with pre-filled conversion routines that
+/// provide good results for blur radii <= 1536. Larger radii may overflow.
+///
+/// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
+#[cfg(any(doc, all(feature = "rayon", feature = "blend-srgb")))]
+pub fn par_blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
+	par_blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
 }

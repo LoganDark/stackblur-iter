@@ -18,6 +18,8 @@ fn blur_srgb_16() { stackblur_iter::blur_srgb(&mut img(), 16) }
 fn blur_srgb_128() { stackblur_iter::blur_srgb(&mut img(), 128) }
 fn blur_srgb_1024() { stackblur_iter::blur_srgb(&mut img(), 1024) }
 
+// parallel versions are non-deterministic
+
 iai::main!(
 	blur_argb_16,
 	blur_argb_128,

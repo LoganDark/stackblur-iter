@@ -15,10 +15,16 @@ exclude = ['.idea']
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+blend-srgb = ['dep:blend-srgb']
+rayon = ['dep:rayon', 'dep:unique']
+
 [dependencies]
 imgref = '^1.9.2'
 imgref-iter = '~0.3.0'
 blend-srgb = { version = '~0.1.1', optional = true }
+rayon = { version = '^1.5.3', optional = true }
+unique = { version = '~0.9.1', optional = true }
 
 [dev-dependencies]
 stackblur = { git = 'https://github.com/LoganDark/stackblur', branch = 'larger-radius' }
