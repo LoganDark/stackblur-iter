@@ -12,48 +12,6 @@ const HEIGHT_NONZERO: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(HEIGHT
 
 #[bench]
 #[inline(never)]
-fn blur_argb_16_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_argb(&mut buf.as_mut(), 16));
-}
-
-#[bench]
-#[inline(never)]
-fn blur_argb_128_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_argb(&mut buf.as_mut(), 128));
-}
-
-#[bench]
-#[inline(never)]
-fn blur_argb_1024_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_argb(&mut buf.as_mut(), 1024));
-}
-
-#[bench]
-#[inline(never)]
-fn blur_argb_16_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_argb(&mut buf.as_mut(), 16));
-}
-
-#[bench]
-#[inline(never)]
-fn blur_argb_128_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_argb(&mut buf.as_mut(), 128));
-}
-
-#[bench]
-#[inline(never)]
-fn blur_argb_1024_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_argb(&mut buf.as_mut(), 1024));
-}
-
-#[bench]
-#[inline(never)]
 fn blur_argb_16(bencher: &mut Bencher) {
 	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
 	bencher.iter(|| crate::blur_argb(&mut buf.as_mut(), 16));
@@ -71,54 +29,6 @@ fn blur_argb_128(bencher: &mut Bencher) {
 fn blur_argb_1024(bencher: &mut Bencher) {
 	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
 	bencher.iter(|| crate::blur_argb(&mut buf.as_mut(), 1024));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_16_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_srgb(&mut buf.as_mut(), 16));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_128_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_srgb(&mut buf.as_mut(), 128));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_1024_horiz(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_horiz_srgb(&mut buf.as_mut(), 1024));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_16_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_srgb(&mut buf.as_mut(), 16));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_128_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_srgb(&mut buf.as_mut(), 128));
-}
-
-#[cfg(feature = "blend-srgb")]
-#[bench]
-#[inline(never)]
-fn blur_srgb_1024_vert(bencher: &mut Bencher) {
-	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
-	bencher.iter(|| crate::blur_vert_srgb(&mut buf.as_mut(), 1024));
 }
 
 #[cfg(feature = "blend-srgb")]
