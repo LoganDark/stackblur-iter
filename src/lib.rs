@@ -111,17 +111,15 @@ pub fn par_blur<T: Send + Sync, B: StackBlurrable + Send + Sync>(
 	let rows = unsafe { buffer_ptr.iter_rows_ptr_mut() }.zip(buffer.iter_rows());
 	let cols = unsafe { buffer_ptr.iter_cols_ptr_mut() }.zip(buffer.iter_cols());
 
-	// This relies on an implementation detail (or bug) in `rayon` where chained
-	// iterators that are then bridged will still execute in sequence.
-	//
-	// This may have to change in the future if that behavior is not guaranteed.
-	rows.chain(cols).par_bridge().for_each(|(write, read)| {
-		let ops_ref = unsafe { &mut *opses_ptr.as_ptr().add(rayon::current_thread_index().unwrap()) };
-		let ops = ops_ref.take().unwrap();
-		let mut blur = StackBlur::new(read.map(&to_blurrable), radius, ops);
-		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
-		ops_ref.replace(blur.into_ops());
-	});
+	for iter in [rows, cols].into_iter() {
+		iter.par_bridge().for_each(|(write, read)| {
+			let ops_ref = unsafe { &mut *opses_ptr.as_ptr().add(rayon::current_thread_index().unwrap()) };
+			let ops = ops_ref.take().unwrap();
+			let mut blur = StackBlur::new(read.map(&to_blurrable), radius, ops);
+			write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
+			ops_ref.replace(blur.into_ops());
+		});
+	}
 }
 
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
