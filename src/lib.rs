@@ -52,7 +52,6 @@ use std::collections::VecDeque;
 pub extern crate imgref;
 
 use imgref::ImgRefMut;
-use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
 
 #[cfg(test)]
 mod test;
@@ -65,66 +64,18 @@ use traits::StackBlurrable;
 use iter::StackBlur;
 use color::Argb;
 
-/// Blurs a buffer on the X axis.
+/// Blurs a buffer, assuming one element per pixel.
 ///
 /// The provided closures are used to convert from the buffer's native pixel
 /// format to [`StackBlurrable`] values that can be consumed by [`StackBlur`].
-///
-/// This is the generic version. If you have a common buffer format (packed
-/// 32-bit integers), you can use [`blur_horiz_argb`] (linear RGB) or
-/// [`blur_horiz_srgb`] (for sRGB).
-pub fn blur_horiz<T, B: StackBlurrable>(
-	buffer: &mut ImgRefMut<T>,
-	radius: usize,
-	mut to_blurrable: impl FnMut(&T) -> B,
-	mut to_pixel: impl FnMut(B) -> T
-) {
-	let mut ops = VecDeque::new();
-
-	for (write, read) in unsafe { buffer.as_mut_ptr().iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
-		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
-		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
-		ops = blur.into_ops();
-	}
-}
-
-/// Blurs a buffer on the Y axis.
-///
-/// The provided closures are used to convert from the buffer's native pixel
-/// format to [`StackBlurrable`] values that can be consumed by [`StackBlur`].
-///
-/// This is the generic version. If you have a common buffer format (packed
-/// 32-bit integers), you can use [`blur_vert_argb`] (linear RGB) or
-/// [`blur_vert_srgb`] (for sRGB).
-pub fn blur_vert<T, B: StackBlurrable>(
-	buffer: &mut ImgRefMut<T>,
-	radius: usize,
-	mut to_blurrable: impl FnMut(&T) -> B,
-	mut to_pixel: impl FnMut(B) -> T
-) {
-	let mut ops = VecDeque::new();
-
-	for (write, read) in unsafe { buffer.as_mut_ptr().iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
-		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
-		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
-		ops = blur.into_ops();
-	}
-}
-
-/// Blurs a buffer on the X and Y axes.
-///
-/// The provided closures are used to convert from the buffer's native pixel
-/// format to [`StackBlurrable`] values that can be consumed by [`StackBlur`].
-///
-/// This is the generic version. If you have a common buffer format (packed
-/// 32-bit integers), you can use [`blur_argb`] (linear RGB) or [`blur_srgb`]
-/// (for sRGB).
 pub fn blur<T, B: StackBlurrable>(
 	buffer: &mut ImgRefMut<T>,
 	radius: usize,
 	mut to_blurrable: impl FnMut(&T) -> B,
 	mut to_pixel: impl FnMut(B) -> T
 ) {
+	use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
+
 	let mut ops = VecDeque::new();
 
 	let buffer_ptr = buffer.as_mut_ptr();
@@ -138,27 +89,7 @@ pub fn blur<T, B: StackBlurrable>(
 	}
 }
 
-/// Blurs a buffer of 32-bit ARGB pixels on the X axis.
-///
-/// This is a version of [`blur_horiz`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 4096. Larger radii may overflow.
-///
-/// Note that this function is *linear*. For sRGB, see [`blur_horiz_srgb`].
-pub fn blur_horiz_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
-}
-
-/// Blurs a buffer of 32-bit ARGB pixels on the Y axis.
-///
-/// This is a version of [`blur_vert`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 4096. Larger radii may overflow.
-///
-/// Note that this function is *linear*. For sRGB, see [`blur_vert_srgb`].
-pub fn blur_vert_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_vert(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
-}
-
-/// Blurs a buffer of 32-bit ARGB pixels on both axes.
+/// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
 ///
 /// This is a version of [`blur`] with pre-filled conversion routines that
 /// provide good results for blur radii <= 4096. Larger radii may overflow.
@@ -168,29 +99,7 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 	blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
 }
 
-/// Blurs a buffer of 32-bit sRGB pixels on the X axis.
-///
-/// This is a version of [`blur_horiz`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 1536. Larger radii may overflow.
-///
-/// Note that this function uses *sRGB*. For linear, see [`blur_horiz_argb`].
-#[cfg(any(doc, feature = "blend-srgb"))]
-pub fn blur_horiz_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_horiz(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
-}
-
-/// Blurs a buffer of 32-bit sRGB pixels on the Y axis.
-///
-/// This is a version of [`blur_vert`] with pre-filled conversion routines that
-/// provide good results for blur radii <= 1536. Larger radii may overflow.
-///
-/// Note that this function uses *sRGB*. For linear, see [`blur_vert_argb`].
-#[cfg(any(doc, feature = "blend-srgb"))]
-pub fn blur_vert_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur_vert(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
-}
-
-/// Blurs a buffer of 32-bit sRGB pixels on both axes.
+/// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB).
 ///
 /// This is a version of [`blur`] with pre-filled conversion routines that
 /// provide good results for blur radii <= 1024. Larger radii may overflow.
