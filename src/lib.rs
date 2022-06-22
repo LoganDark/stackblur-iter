@@ -52,7 +52,7 @@ use std::collections::VecDeque;
 pub extern crate imgref;
 
 use imgref::ImgRefMut;
-use imgref_iter::traits::{ImgIter, ImgIterPtrMut};
+use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
 
 #[cfg(test)]
 mod test;
@@ -81,7 +81,7 @@ pub fn blur_horiz<T, B: StackBlurrable>(
 ) {
 	let mut ops = VecDeque::new();
 
-	for (write, read) in unsafe { buffer.iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
+	for (write, read) in unsafe { buffer.as_mut_ptr().iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
 		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
 		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 		ops = blur.into_ops();
@@ -104,7 +104,7 @@ pub fn blur_vert<T, B: StackBlurrable>(
 ) {
 	let mut ops = VecDeque::new();
 
-	for (write, read) in unsafe { buffer.iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
+	for (write, read) in unsafe { buffer.as_mut_ptr().iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
 		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
 		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 		ops = blur.into_ops();
@@ -127,13 +127,11 @@ pub fn blur<T, B: StackBlurrable>(
 ) {
 	let mut ops = VecDeque::new();
 
-	for (write, read) in unsafe { buffer.iter_rows_ptr_mut() }.zip(buffer.iter_rows()) {
-		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
-		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
-		ops = blur.into_ops();
-	}
+	let buffer_ptr = buffer.as_mut_ptr();
+	let rows = unsafe { buffer_ptr.iter_rows_ptr_mut() }.zip(buffer.iter_rows());
+	let cols = unsafe { buffer_ptr.iter_cols_ptr_mut() }.zip(buffer.iter_cols());
 
-	for (write, read) in unsafe { buffer.iter_cols_ptr_mut() }.zip(buffer.iter_cols()) {
+	for (write, read) in rows.chain(cols) {
 		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
 		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 		ops = blur.into_ops();
