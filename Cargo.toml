@@ -15,6 +15,10 @@ exclude = ['.idea']
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+blend-srgb = ['dep:blend-srgb']
+simd = ['imgref-iter/simd']
+
 [dependencies]
 imgref = '^1.9.2'
 imgref-iter = '~0.3.0'
@@ -26,4 +30,8 @@ iai = '~0.1.1'
 
 [[bench]]
 name = 'iai'
+harness = false
+
+[[bench]]
+name = 'iai_simd'
 harness = false

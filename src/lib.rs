@@ -45,9 +45,12 @@
 //! that can be used to interact with 2D image buffers, due to the fact that
 //! doing so manually involves unsafe code (if you want no-copy).
 
+#![cfg_attr(feature = "simd", feature(portable_simd))]
 #![cfg_attr(test, feature(test))]
 
 use std::collections::VecDeque;
+#[cfg(feature = "simd")]
+use std::simd::{LaneCount, SupportedLaneCount};
 
 pub extern crate imgref;
 
@@ -89,6 +92,43 @@ pub fn blur<T, B: StackBlurrable>(
 	}
 }
 
+pub fn simd_blur<T, Bsimd: StackBlurrable, Bsingle: StackBlurrable, const LANES: usize>(
+	buffer: &mut ImgRefMut<T>,
+	radius: usize,
+	mut to_blurrable_simd: impl FnMut([&T; LANES]) -> Bsimd,
+	mut to_pixel_simd: impl FnMut(Bsimd) -> [T; LANES],
+	mut to_blurrable_single: impl FnMut(&T) -> Bsingle,
+	mut to_pixel_single: impl FnMut(Bsingle) -> T
+) where LaneCount<LANES>: SupportedLaneCount {
+	use imgref_iter::traits::{ImgIterMut, ImgSimdIter, ImgSimdIterPtrMut};
+	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut};
+
+	let mut ops_simd = VecDeque::new();
+	let mut ops_single = VecDeque::new();
+
+	let buffer_ptr = buffer.as_mut_ptr();
+	let rows = unsafe { buffer_ptr.simd_iter_rows_ptr_mut::<LANES>() }.zip(buffer.simd_iter_rows::<LANES>());
+	let cols = unsafe { buffer_ptr.simd_iter_cols_ptr_mut::<LANES>() }.zip(buffer.simd_iter_cols::<LANES>());
+
+	for (write, read) in rows.chain(cols) {
+		match (write, read) {
+			(SimdIterWindowPtrMut::Simd(write), SimdIterWindow::Simd(read)) => {
+				let mut blur = StackBlur::new(read.map(&mut to_blurrable_simd), radius, ops_simd);
+				write.for_each(|place| place.into_iter().zip(to_pixel_simd(blur.next().unwrap())).for_each(|(place, pixel)| unsafe { *place = pixel }));
+				ops_simd = blur.into_ops();
+			}
+
+			(SimdIterWindowPtrMut::Single(write), SimdIterWindow::Single(read)) => {
+				let mut blur = StackBlur::new(read.map(&mut to_blurrable_single), radius, ops_single);
+				write.for_each(|place| unsafe { *place = to_pixel_single(blur.next().unwrap()) });
+				ops_single = blur.into_ops();
+			}
+
+			_ => unreachable!()
+		}
+	}
+}
+
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
 ///
 /// This is a version of [`blur`] with pre-filled conversion routines that
@@ -108,4 +148,32 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 #[cfg(any(doc, feature = "blend-srgb"))]
 pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 	blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
+}
+
+/// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
+///
+/// This is a version of [`blur`] with pre-filled conversion routines that
+/// provide good results for blur radii <= 4096. Larger radii may overflow.
+///
+/// Note that this function is *linear*. For sRGB, see [`blur_srgb`].
+#[cfg(any(doc, feature = "simd"))]
+pub fn simd_blur_argb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+	simd_blur(buffer, radius,
+		|i: [&u32; LANES]| Argb::from_u32xN(i.map(u32::clone)), Argb::to_u32xN,
+		|i| Argb::from_u32(*i), Argb::to_u32
+	);
+}
+
+/// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB).
+///
+/// This is a version of [`blur`] with pre-filled conversion routines that
+/// provide good results for blur radii <= 1024. Larger radii may overflow.
+///
+/// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
+#[cfg(any(doc, all(feature = "simd", feature = "blend-srgb")))]
+pub fn simd_blur_srgb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+	simd_blur(buffer, radius,
+		|i: [&u32; LANES]| Argb::from_u32xN_srgb(i.map(u32::clone)), Argb::to_u32xN_srgb,
+		|i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb
+	);
 }
