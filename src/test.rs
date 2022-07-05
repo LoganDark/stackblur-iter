@@ -31,6 +31,78 @@ fn blur_argb_1024(bencher: &mut Bencher) {
 	bencher.iter(|| crate::blur_argb(&mut buf.as_mut(), 1024));
 }
 
+#[cfg(feature = "rayon")]
+#[bench]
+#[inline(never)]
+fn par_blur_argb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_argb(&mut buf.as_mut(), 16));
+}
+
+#[cfg(feature = "rayon")]
+#[bench]
+#[inline(never)]
+fn par_blur_argb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_argb(&mut buf.as_mut(), 128));
+}
+
+#[cfg(feature = "rayon")]
+#[bench]
+#[inline(never)]
+fn par_blur_argb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_argb(&mut buf.as_mut(), 1024));
+}
+
+#[cfg(feature = "simd")]
+#[bench]
+#[inline(never)]
+fn simd_blur_argb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_argb::<8>(&mut buf.as_mut(), 16));
+}
+
+#[cfg(feature = "simd")]
+#[bench]
+#[inline(never)]
+fn simd_blur_argb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_argb::<8>(&mut buf.as_mut(), 128));
+}
+
+#[cfg(feature = "simd")]
+#[bench]
+#[inline(never)]
+fn simd_blur_argb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_argb::<8>(&mut buf.as_mut(), 1024));
+}
+
+#[cfg(all(feature = "simd", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_argb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_argb::<8>(&mut buf.as_mut(), 16));
+}
+
+#[cfg(all(feature = "simd", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_argb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_argb::<8>(&mut buf.as_mut(), 128));
+}
+
+#[cfg(all(feature = "simd", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_argb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_argb::<8>(&mut buf.as_mut(), 1024));
+}
+
 #[cfg(feature = "blend-srgb")]
 #[bench]
 #[inline(never)]
@@ -53,6 +125,78 @@ fn blur_srgb_128(bencher: &mut Bencher) {
 fn blur_srgb_1024(bencher: &mut Bencher) {
 	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
 	bencher.iter(|| crate::blur_srgb(&mut buf.as_mut(), 1024));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_blur_srgb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_srgb(&mut buf.as_mut(), 16));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_blur_srgb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_srgb(&mut buf.as_mut(), 128));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon"))]
+#[bench]
+#[inline(never)]
+fn par_blur_srgb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_blur_srgb(&mut buf.as_mut(), 1024));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn simd_blur_srgb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_srgb::<8>(&mut buf.as_mut(), 16));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn simd_blur_srgb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_srgb::<8>(&mut buf.as_mut(), 128));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn simd_blur_srgb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::simd_blur_srgb::<8>(&mut buf.as_mut(), 1024));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_srgb_16(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_srgb::<8>(&mut buf.as_mut(), 16));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_srgb_128(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_srgb::<8>(&mut buf.as_mut(), 128));
+}
+
+#[cfg(all(feature = "blend-srgb", feature = "rayon", feature = "simd"))]
+#[bench]
+#[inline(never)]
+fn par_simd_blur_srgb_1024(bencher: &mut Bencher) {
+	let mut buf = ImgVec::new(vec![0; WIDTH * HEIGHT], WIDTH, HEIGHT);
+	bencher.iter(|| crate::par_simd_blur_srgb::<8>(&mut buf.as_mut(), 1024));
 }
 
 #[bench]
