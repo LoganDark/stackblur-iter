@@ -49,7 +49,7 @@
 #![cfg_attr(test, feature(test))]
 
 use std::collections::VecDeque;
-#[cfg(feature = "simd")]
+#[cfg(any(doc, feature = "simd"))]
 use std::simd::{LaneCount, SupportedLaneCount};
 
 pub extern crate imgref;
@@ -139,7 +139,9 @@ pub fn simd_blur<T, Bsimd: StackBlurrable, Bsingle: StackBlurrable, const LANES:
 	mut to_blurrable_single: impl FnMut(&T) -> Bsingle,
 	mut to_pixel_single: impl FnMut(Bsingle) -> T
 ) where LaneCount<LANES>: SupportedLaneCount {
+	#[cfg(not(doc))]
 	use imgref_iter::traits::{ImgIterMut, ImgSimdIter, ImgSimdIterPtrMut};
+	#[cfg(not(doc))]
 	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut};
 
 	let mut ops_simd = VecDeque::new();
@@ -181,8 +183,11 @@ pub fn par_simd_blur<T: Send + Sync, Bsimd: StackBlurrable + Send + Sync, Bsingl
 	to_blurrable_single: impl Fn(&T) -> Bsingle + Sync,
 	to_pixel_single: impl Fn(Bsingle) -> T + Sync
 ) where LaneCount<LANES>: SupportedLaneCount {
+	#[cfg(not(doc))]
 	use imgref_iter::traits::{ImgIterMut, ImgSimdIter, ImgSimdIterPtrMut};
+	#[cfg(not(doc))]
 	use rayon::iter::{ParallelBridge, ParallelIterator};
+	#[cfg(not(doc))]
 	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut};
 
 	let mut opses_simd = vec![Some(VecDeque::new()); rayon::current_num_threads()];
