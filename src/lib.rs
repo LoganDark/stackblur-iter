@@ -60,12 +60,19 @@ use imgref::ImgRefMut;
 mod test;
 
 pub mod traits;
+pub mod cvt;
 pub mod iter;
-mod color;
+pub(crate) mod color;
 
 use traits::StackBlurrable;
 use iter::StackBlur;
-use color::Argb;
+use cvt::AsStackBlurrable;
+#[cfg(any(doc, feature = "blend-srgb"))]
+use cvt::AsStackBlurrableSrgb;
+#[cfg(any(doc, feature = "simd"))]
+use crate::cvt::AsStackBlurrableSimd;
+#[cfg(any(doc, all(feature = "blend-srgb", feature = "simd")))]
+use crate::cvt::AsStackBlurrableSrgbSimd;
 
 /// Blurs a buffer, assuming one element per pixel.
 ///
@@ -124,7 +131,6 @@ pub fn par_blur<T: Send + Sync, B: StackBlurrable + Send + Sync>(
 		});
 	}
 }
-
 
 /// Blurs a buffer with SIMD, assuming one element per pixel.
 ///
@@ -229,8 +235,8 @@ pub fn par_simd_blur<T: Send + Sync, Bsimd: StackBlurrable + Send + Sync, Bsingl
 /// provide good results for blur radii <= 4096. Larger radii may overflow.
 ///
 /// Note that this function is *linear*. For sRGB, see [`blur_srgb`].
-pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
+pub fn blur_argb<T: AsStackBlurrable>(buffer: &mut ImgRefMut<T>, radius: usize) {
+	blur(buffer, radius, T::as_stackblurrable, T::from_stackblurrable);
 }
 
 /// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB).
@@ -240,8 +246,8 @@ pub fn blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function uses *sRGB*. For linear, see [`blur_argb`].
 #[cfg(any(doc, feature = "blend-srgb"))]
-pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
+pub fn blur_srgb<T: AsStackBlurrableSrgb>(buffer: &mut ImgRefMut<T>, radius: usize) {
+	blur(buffer, radius, T::as_stackblurrable_srgb, T::from_stackblurrable_srgb);
 }
 
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB) in parallel.
@@ -251,8 +257,8 @@ pub fn blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function is *linear*. For sRGB, see [`par_blur_srgb`].
 #[cfg(any(doc, feature = "rayon"))]
-pub fn par_blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	par_blur(buffer, radius, |i| Argb::from_u32(*i), Argb::to_u32);
+pub fn par_blur_argb<T: AsStackBlurrable + Send + Sync>(buffer: &mut ImgRefMut<T>, radius: usize) where T::B: Send + Sync {
+	par_blur(buffer, radius, T::as_stackblurrable, T::from_stackblurrable);
 }
 
 /// Blurs a buffer of 32-bit packed sRGB pixels (0xAARRGGBB) in parallel.
@@ -262,8 +268,8 @@ pub fn par_blur_argb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function uses *sRGB*. For linear, see [`par_blur_argb`].
 #[cfg(any(doc, all(feature = "rayon", feature = "blend-srgb")))]
-pub fn par_blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
-	par_blur(buffer, radius, |i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb);
+pub fn par_blur_srgb<T: AsStackBlurrableSrgb + Send + Sync>(buffer: &mut ImgRefMut<T>, radius: usize) where T::B: Send + Sync {
+	par_blur(buffer, radius, T::as_stackblurrable_srgb, T::from_stackblurrable_srgb);
 }
 
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB) with SIMD.
@@ -273,10 +279,10 @@ pub fn par_blur_srgb(buffer: &mut ImgRefMut<u32>, radius: usize) {
 ///
 /// Note that this function is *linear*. For sRGB, see [`simd_blur_srgb`].
 #[cfg(any(doc, feature = "simd"))]
-pub fn simd_blur_argb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+pub fn simd_blur_argb<T: AsStackBlurrableSimd<LANES>, const LANES: usize>(buffer: &mut ImgRefMut<T>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
 	simd_blur(buffer, radius,
-		|i: [&u32; LANES]| Argb::from_u32xN(i.map(u32::clone)), Argb::to_u32xN,
-		|i| Argb::from_u32(*i), Argb::to_u32
+		T::as_stackblurrable_simd, T::from_stackblurrable_simd,
+		T::as_stackblurrable, T::from_stackblurrable
 	);
 }
 
@@ -287,10 +293,10 @@ pub fn simd_blur_argb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: u
 ///
 /// Note that this function uses *sRGB*. For linear, see [`simd_blur_argb`].
 #[cfg(any(doc, all(feature = "simd", feature = "blend-srgb")))]
-pub fn simd_blur_srgb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+pub fn simd_blur_srgb<T: AsStackBlurrableSrgbSimd<LANES>, const LANES: usize>(buffer: &mut ImgRefMut<T>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
 	simd_blur(buffer, radius,
-		|i: [&u32; LANES]| Argb::from_u32xN_srgb(i.map(u32::clone)), Argb::to_u32xN_srgb,
-		|i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb
+		T::as_stackblurrable_srgb_simd, T::from_stackblurrable_srgb_simd,
+		T::as_stackblurrable_srgb, T::from_stackblurrable_srgb
 	);
 }
 
@@ -302,10 +308,10 @@ pub fn simd_blur_srgb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: u
 ///
 /// Note that this function is *linear*. For sRGB, see [`par_simd_blur_srgb`].
 #[cfg(any(doc, all(feature = "rayon", feature = "simd")))]
-pub fn par_simd_blur_argb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+pub fn par_simd_blur_argb<T: AsStackBlurrableSimd<LANES> + Send + Sync, const LANES: usize>(buffer: &mut ImgRefMut<T>, radius: usize) where LaneCount<LANES>: SupportedLaneCount, T::B: Send + Sync, T::Bsimd: Send + Sync {
 	par_simd_blur(buffer, radius,
-		|i: [&u32; LANES]| Argb::from_u32xN(i.map(u32::clone)), Argb::to_u32xN,
-		|i| Argb::from_u32(*i), Argb::to_u32
+		T::as_stackblurrable_simd, T::from_stackblurrable_simd,
+		T::as_stackblurrable, T::from_stackblurrable
 	);
 }
 
@@ -317,9 +323,9 @@ pub fn par_simd_blur_argb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radiu
 ///
 /// Note that this function uses *sRGB*. For linear, see [`par_simd_blur_argb`].
 #[cfg(any(doc, all(feature = "rayon", feature = "simd", feature = "blend-srgb")))]
-pub fn par_simd_blur_srgb<const LANES: usize>(buffer: &mut ImgRefMut<u32>, radius: usize) where LaneCount<LANES>: SupportedLaneCount {
+pub fn par_simd_blur_srgb<T: AsStackBlurrableSrgbSimd<LANES> + Send + Sync, const LANES: usize>(buffer: &mut ImgRefMut<T>, radius: usize) where LaneCount<LANES>: SupportedLaneCount, T::B: Send + Sync, T::Bsimd: Send + Sync {
 	par_simd_blur(buffer, radius,
-		|i: [&u32; LANES]| Argb::from_u32xN_srgb(i.map(u32::clone)), Argb::to_u32xN_srgb,
-		|i| Argb::from_u32_srgb(*i), Argb::to_u32_srgb
+		T::as_stackblurrable_srgb_simd, T::from_stackblurrable_srgb_simd,
+		T::as_stackblurrable_srgb, T::from_stackblurrable_srgb
 	);
 }
