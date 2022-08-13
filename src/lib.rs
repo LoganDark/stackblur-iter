@@ -78,18 +78,27 @@ pub fn blur<T, B: StackBlurrable>(
 	mut to_pixel: impl FnMut(B) -> T
 ) {
 	use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
+	use imgref_iter::iter::{IterWindows, IterWindowsPtrMut};
 
 	let mut ops = VecDeque::new();
 
-	let buffer_ptr = buffer.as_mut_ptr();
-	let rows = unsafe { buffer_ptr.iter_rows_ptr_mut() }.zip(buffer.iter_rows());
-	let cols = unsafe { buffer_ptr.iter_cols_ptr_mut() }.zip(buffer.iter_cols());
+	// This is needed to avoid Undefined Behavior. Writing to the rows of the
+	// must be done before constructing the columns iterators, because otherwise
+	// the writes would invalidate their borrows. However I don't want to
+	// duplicate this loop, so make it a closure.
+	let mut blur_windows = |writer: IterWindowsPtrMut<T>, reader: IterWindows<T>, mut ops: VecDeque<B>| {
+		for (write, read) in writer.zip(reader) {
+			let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
+			write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
+			ops = blur.into_ops();
+		}
 
-	for (write, read) in rows.chain(cols) {
-		let mut blur = StackBlur::new(read.map(&mut to_blurrable), radius, ops);
-		write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
-		ops = blur.into_ops();
-	}
+		ops
+	};
+
+	let buffer_ptr = buffer.as_mut_ptr();
+	ops = blur_windows(unsafe { buffer_ptr.iter_rows_ptr_mut() }, buffer.iter_rows(), ops);
+	blur_windows(unsafe { buffer_ptr.iter_cols_ptr_mut() }, buffer.iter_cols(), ops);
 }
 
 /// Blurs a buffer in parallel, assuming one element per pixel.
@@ -104,27 +113,27 @@ pub fn par_blur<T: Send + Sync, B: StackBlurrable + Send + Sync>(
 	to_pixel: impl Fn(B) -> T + Sync
 ) {
 	use imgref_iter::traits::{ImgIter, ImgIterMut, ImgIterPtrMut};
+	use imgref_iter::iter::{IterWindows, IterWindowsPtrMut};
 	#[cfg(not(doc))]
 	use rayon::iter::{ParallelBridge, ParallelIterator};
 
 	let mut opses = vec![Some(VecDeque::new()); rayon::current_num_threads()];
 	let opses_ptr = unsafe { unique::Unique::new_unchecked(opses.as_mut_ptr()) };
 
-	let buffer_ptr = buffer.as_mut_ptr();
-	let rows = unsafe { buffer_ptr.iter_rows_ptr_mut() }.zip(buffer.iter_rows());
-	let cols = unsafe { buffer_ptr.iter_cols_ptr_mut() }.zip(buffer.iter_cols());
-
-	for iter in [rows, cols].into_iter() {
-		iter.par_bridge().for_each(|(write, read)| {
+	let par_blur_windows = |writer: IterWindowsPtrMut<T>, reader: IterWindows<T>| {
+		writer.zip(reader).par_bridge().for_each(|(write, read)| {
 			let ops_ref = unsafe { &mut *opses_ptr.as_ptr().add(rayon::current_thread_index().unwrap()) };
 			let ops = ops_ref.take().unwrap();
 			let mut blur = StackBlur::new(read.map(&to_blurrable), radius, ops);
 			write.for_each(|place| unsafe { *place = to_pixel(blur.next().unwrap()) });
 			ops_ref.replace(blur.into_ops());
 		});
-	}
-}
+	};
 
+	let buffer_ptr = buffer.as_mut_ptr();
+	par_blur_windows(unsafe { buffer_ptr.iter_rows_ptr_mut() }, buffer.iter_rows());
+	par_blur_windows(unsafe { buffer_ptr.iter_cols_ptr_mut() }, buffer.iter_cols());
+}
 
 /// Blurs a buffer with SIMD, assuming one element per pixel.
 ///
@@ -142,32 +151,36 @@ pub fn simd_blur<T, Bsimd: StackBlurrable, Bsingle: StackBlurrable, const LANES:
 	#[cfg(not(doc))]
 	use imgref_iter::traits::{ImgIterMut, ImgSimdIter, ImgSimdIterPtrMut};
 	#[cfg(not(doc))]
-	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut};
+	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut, SimdIterWindows, SimdIterWindowsPtrMut};
 
 	let mut ops_simd = VecDeque::new();
 	let mut ops_single = VecDeque::new();
 
-	let buffer_ptr = buffer.as_mut_ptr();
-	let rows = unsafe { buffer_ptr.simd_iter_rows_ptr_mut::<LANES>() }.zip(buffer.simd_iter_rows::<LANES>());
-	let cols = unsafe { buffer_ptr.simd_iter_cols_ptr_mut::<LANES>() }.zip(buffer.simd_iter_cols::<LANES>());
+	let mut simd_blur_windows = |writer: SimdIterWindowsPtrMut<T, LANES>, reader: SimdIterWindows<T, LANES>, mut ops_simd: VecDeque<Bsimd>, mut ops_single: VecDeque<Bsingle>| {
+		for (write, read) in writer.zip(reader) {
+			match (write, read) {
+				(SimdIterWindowPtrMut::Simd(write), SimdIterWindow::Simd(read)) => {
+					let mut blur = StackBlur::new(read.map(&mut to_blurrable_simd), radius, ops_simd);
+					write.for_each(|place| place.into_iter().zip(to_pixel_simd(blur.next().unwrap())).for_each(|(place, pixel)| unsafe { *place = pixel }));
+					ops_simd = blur.into_ops();
+				}
 
-	for (write, read) in rows.chain(cols) {
-		match (write, read) {
-			(SimdIterWindowPtrMut::Simd(write), SimdIterWindow::Simd(read)) => {
-				let mut blur = StackBlur::new(read.map(&mut to_blurrable_simd), radius, ops_simd);
-				write.for_each(|place| place.into_iter().zip(to_pixel_simd(blur.next().unwrap())).for_each(|(place, pixel)| unsafe { *place = pixel }));
-				ops_simd = blur.into_ops();
+				(SimdIterWindowPtrMut::Single(write), SimdIterWindow::Single(read)) => {
+					let mut blur = StackBlur::new(read.map(&mut to_blurrable_single), radius, ops_single);
+					write.for_each(|place| unsafe { *place = to_pixel_single(blur.next().unwrap()) });
+					ops_single = blur.into_ops();
+				}
+
+				_ => unreachable!()
 			}
-
-			(SimdIterWindowPtrMut::Single(write), SimdIterWindow::Single(read)) => {
-				let mut blur = StackBlur::new(read.map(&mut to_blurrable_single), radius, ops_single);
-				write.for_each(|place| unsafe { *place = to_pixel_single(blur.next().unwrap()) });
-				ops_single = blur.into_ops();
-			}
-
-			_ => unreachable!()
 		}
-	}
+
+		(ops_simd, ops_single)
+	};
+
+	let buffer_ptr = buffer.as_mut_ptr();
+	(ops_simd, ops_single) = simd_blur_windows(unsafe { buffer_ptr.simd_iter_rows_ptr_mut::<LANES>() }, buffer.simd_iter_rows::<LANES>(), ops_simd, ops_single);
+	simd_blur_windows(unsafe { buffer_ptr.simd_iter_cols_ptr_mut::<LANES>() }, buffer.simd_iter_cols::<LANES>(), ops_simd, ops_single);
 }
 
 /// Blurs a buffer with SIMD in parallel, assuming one element per pixel.
@@ -188,7 +201,7 @@ pub fn par_simd_blur<T: Send + Sync, Bsimd: StackBlurrable + Send + Sync, Bsingl
 	#[cfg(not(doc))]
 	use rayon::iter::{ParallelBridge, ParallelIterator};
 	#[cfg(not(doc))]
-	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut};
+	use imgref_iter::iter::{SimdIterWindow, SimdIterWindowPtrMut, SimdIterWindows, SimdIterWindowsPtrMut};
 
 	let mut opses_simd = vec![Some(VecDeque::new()); rayon::current_num_threads()];
 	let opses_simd_ptr = unsafe { unique::Unique::new_unchecked(opses_simd.as_mut_ptr()) };
@@ -196,12 +209,8 @@ pub fn par_simd_blur<T: Send + Sync, Bsimd: StackBlurrable + Send + Sync, Bsingl
 	let mut opses_single = vec![Some(VecDeque::new()); rayon::current_num_threads()];
 	let opses_single_ptr = unsafe { unique::Unique::new_unchecked(opses_single.as_mut_ptr()) };
 
-	let buffer_ptr = buffer.as_mut_ptr();
-	let rows = unsafe { buffer_ptr.simd_iter_rows_ptr_mut::<LANES>() }.zip(buffer.simd_iter_rows::<LANES>());
-	let cols = unsafe { buffer_ptr.simd_iter_cols_ptr_mut::<LANES>() }.zip(buffer.simd_iter_cols::<LANES>());
-
-	for iter in [rows, cols].into_iter() {
-		iter.par_bridge().for_each(|(write, read)| match (write, read) {
+	let par_simd_blur_windows = |writer: SimdIterWindowsPtrMut<T, LANES>, reader: SimdIterWindows<T, LANES>| {
+		writer.zip(reader).par_bridge().for_each(|(write, read)| match (write, read) {
 			(SimdIterWindowPtrMut::Simd(write), SimdIterWindow::Simd(read)) => {
 				let ops_ref = unsafe { &mut *opses_simd_ptr.as_ptr().add(rayon::current_thread_index().unwrap()) };
 				let ops = ops_ref.take().unwrap();
@@ -220,7 +229,11 @@ pub fn par_simd_blur<T: Send + Sync, Bsimd: StackBlurrable + Send + Sync, Bsingl
 
 			_ => unreachable!()
 		});
-	}
+	};
+
+	let buffer_ptr = buffer.as_mut_ptr();
+	par_simd_blur_windows(unsafe { buffer_ptr.simd_iter_rows_ptr_mut::<LANES>() }, buffer.simd_iter_rows::<LANES>());
+	par_simd_blur_windows(unsafe { buffer_ptr.simd_iter_cols_ptr_mut::<LANES>() }, buffer.simd_iter_cols::<LANES>());
 }
 
 /// Blurs a buffer of 32-bit packed ARGB pixels (0xAARRGGBB).
