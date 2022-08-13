@@ -1,9 +1,9 @@
 [package]
 name = 'stackblur-iter'
-version = '0.1.6'
+version = '0.2.0'
 authors = ['LoganDark']
 edition = '2021'
-rust-version = '1.56'
+rust-version = '1.63'
 description = 'A fast, iterative, correct approach to Stackblur, resulting in a very smooth and high-quality output, with no edge bleeding'
 documentation = 'https://docs.rs/stackblur-iter'
 readme = 'README.md'
@@ -22,7 +22,7 @@ simd = ['imgref-iter/simd']
 
 [dependencies]
 imgref = '^1.9.2'
-imgref-iter = '~0.3.3'
+imgref-iter = '~0.4.0'
 blend-srgb = { version = '~0.1.1', optional = true }
 rayon = { version = '^1.5.3', optional = true }
 unique = { version = '~0.9.1', optional = true }

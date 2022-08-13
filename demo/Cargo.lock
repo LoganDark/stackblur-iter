@@ -350,9 +350,9 @@ checksum = "7d6a8cd48d0dc604999b8beacfbfc2f4eb289a52af175029d4f79fb57b80c7d5"
 
 [[package]]
 name = "imgref-iter"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e28d3436c9ad82ce3c4d4a2761adb25b8eeb6a359c34a5a979e45290008e62e"
+checksum = "58112733c0ee178b66dceba49e0445d0b293268719de579d2c7dd4c2290976aa"
 dependencies = [
  "imgref",
 ]
